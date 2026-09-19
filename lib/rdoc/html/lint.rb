@@ -13,6 +13,8 @@ module Rdoc
 
         BASE_URL = 'https://docs.ruby-lang.org/en/master/'
         REDIRECT_CODES = %w[301 302 303 307 308]
+        OK_CODES = ['200']
+        FOUND_CODES = OK_CODES + REDIRECT_CODES
 
 
         def initialize
@@ -24,6 +26,7 @@ module Rdoc
           queue = [BASE_URL]
 
           redirects = {}
+          breaks = {}
 
           def fetch(url, limit = 10)
             raise 'too many redirects' if limit.zero?
@@ -54,22 +57,19 @@ module Rdoc
           while (url = queue.shift)
             next if visited.include?(url)
 
-            puts url
-
             begin
               response, final_url, _ = fetch(url)
 
               # Follow redirects by using the canonical URL.
               if final_url != url
-                # puts "  -> #{response.code} #{final_url}"
                 redirects[url] = final_url
               end
 
               # Mark the canonical URL as visited, not just the URL we requested.
               visited << final_url
 
-              unless response.is_a?(Net::HTTPSuccess)
-                warn "  HTTP #{response.code}"
+              unless FOUND_CODES.include?(response.code)
+                breaks[final_url] = "#{response.code} #{final_url}"
                 next
               end
 
@@ -98,7 +98,8 @@ module Rdoc
             end
           end
 
-          puts
+          p redirects
+          p breaks
           puts "Pages discovered: #{visited.size}"
 
         end
