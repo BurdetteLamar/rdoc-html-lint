@@ -57,19 +57,21 @@ module Rdoc
           while (url = queue.shift)
             next if visited.include?(url)
 
+            puts url
+
             begin
               response, final_url, _ = fetch(url)
 
               # Follow redirects by using the canonical URL.
               if final_url != url
-                redirects[url] = final_url
+                redirects[url] = [response.code, final_url]
               end
 
               # Mark the canonical URL as visited, not just the URL we requested.
               visited << final_url
 
               unless FOUND_CODES.include?(response.code)
-                breaks[final_url] = "#{response.code} #{final_url}"
+                breaks[final_url] = response.code
                 next
               end
 
@@ -98,8 +100,16 @@ module Rdoc
             end
           end
 
-          p redirects
-          p breaks
+          redirects.each_pair do |orig_url, data|
+            code, new_url = data
+            puts code
+            puts orig_url
+            puts new_url
+          end
+          breaks.each_pair do |orig_url, code|
+            puts code
+            puts orig_url
+          end
           puts "Pages discovered: #{visited.size}"
 
         end
