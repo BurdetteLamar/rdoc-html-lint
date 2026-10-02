@@ -13,8 +13,8 @@ module Rdoc
 
         BASE_URL = 'https://docs.ruby-lang.org/en/master/'
         REDIRECT_CODES = %w[301 302 303 307 308]
-        OK_CODES = ['200']
-        FOUND_CODES = OK_CODES + REDIRECT_CODES
+        OK_CODE = ['200']
+        FOUND_CODES = OK_CODE + REDIRECT_CODES
 
 
         def initialize
@@ -113,7 +113,9 @@ module Rdoc
           puts "Pages discovered: #{visited.size}"
 
         end
+
         class Error < StandardError; end
+
       end
     end
   end
