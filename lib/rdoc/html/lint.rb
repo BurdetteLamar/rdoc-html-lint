@@ -23,10 +23,9 @@ module Rdoc
 
         def run
           visited = Set.new
+          found = Set.new
+          pages = {}
           queue = [BASE_URL]
-
-          redirects = {}
-          breaks = {}
 
           def fetch(url, limit = 10)
             raise 'too many redirects' if limit.zero?
@@ -57,23 +56,22 @@ module Rdoc
           while (url = queue.shift)
             next if visited.include?(url)
 
+            page = pages[url]
+            unless page
+              page = Page.new(url)
+              pages[url] = page
+            end
+
             puts url
 
             begin
               response, final_url, _ = fetch(url)
-
-              # Follow redirects by using the canonical URL.
-              if final_url != url
-                redirects[url] = [response.code, final_url]
-              end
-
-              # Mark the canonical URL as visited, not just the URL we requested.
               visited << final_url
+              visited << url
 
-              unless FOUND_CODES.include?(response.code)
-                breaks[final_url] = response.code
-                next
-              end
+              next unless FOUND_CODES.include?(response.code)
+
+              found << url
 
               content_type = response['content-type'].to_s
               next unless content_type.include?('text/html')
@@ -87,7 +85,9 @@ module Rdoc
                   next unless link.path.start_with?('/en/master')
 
                   link.fragment = nil
+
                   link = link.to_s
+                  page.links << link
 
                   queue << link unless visited.include?(link)
                 rescue URI::InvalidURIError
@@ -100,18 +100,33 @@ module Rdoc
             end
           end
 
-          redirects.each_pair do |orig_url, data|
-            code, new_url = data
-            puts code
-            puts orig_url
-            puts new_url
+          breaks = []
+          pages.each do |url, page|
+            page.links.each do |link|
+              breaks << [url, link] unless found.include?(link)
+            end
           end
-          breaks.each_pair do |orig_url, code|
-            puts code
-            puts orig_url
+          if breaks.empty?
+            puts "No breaks found."
+          else
+            puts "#{breaks.size} breaks found."
+            breaks.each do |url, link|
+              puts "Source:  #{url}"
+              puts "Target:  #{link}"
+            end
           end
-          puts "Pages discovered: #{visited.size}"
 
+        end
+
+        class Page
+
+          attr_accessor :url, :links
+
+          def initialize(url)
+            self.url = url
+            self.links = []
+
+          end
         end
 
         class Error < StandardError; end
