@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
+require 'cgi'
 require 'net/http'
-require 'uri'
 require 'set'
-
+require 'uri'
 require_relative "lint/version"
 
 module Rdoc
@@ -21,37 +21,38 @@ module Rdoc
 
         end
 
+        def fetch(url, limit = 10)
+          raise 'too many redirects' if limit.zero?
+
+          uri = URI(url)
+
+          http = Net::HTTP.new(uri.host, uri.port)
+          http.use_ssl = (uri.scheme == 'https')
+          http.open_timeout = 10
+          http.read_timeout = 30
+
+          request = Net::HTTP::Get.new(uri.request_uri)
+          request['User-Agent'] = 'Ruby documentation crawler'
+
+          response = http.request(request)
+
+          if REDIRECT_CODES.include?(response.code)
+            location = response['location']
+            raise "redirect without Location header" unless location
+
+            target = URI.join(url, location).to_s
+            return [response, target, fetch(target, limit - 1)[2]]
+          end
+
+          [response, url, nil]
+        end
+
         def run
           visited = Set.new
           found = Set.new
           pages = {}
           queue = [BASE_URL]
 
-          def fetch(url, limit = 10)
-            raise 'too many redirects' if limit.zero?
-
-            uri = URI(url)
-
-            http = Net::HTTP.new(uri.host, uri.port)
-            http.use_ssl = (uri.scheme == 'https')
-            http.open_timeout = 10
-            http.read_timeout = 30
-
-            request = Net::HTTP::Get.new(uri.request_uri)
-            request['User-Agent'] = 'Ruby documentation crawler'
-
-            response = http.request(request)
-
-            if REDIRECT_CODES.include?(response.code)
-              location = response['location']
-              raise "redirect without Location header" unless location
-
-              target = URI.join(url, location).to_s
-              return [response, target, fetch(target, limit - 1)[2]]
-            end
-
-            [response, url, nil]
-          end
 
           while (url = queue.shift)
             next if visited.include?(url)
@@ -71,7 +72,7 @@ module Rdoc
 
               next unless FOUND_CODES.include?(response.code)
 
-              found << url
+              found << final_url
 
               content_type = response['content-type'].to_s
               next unless content_type.include?('text/html')
@@ -106,6 +107,7 @@ module Rdoc
               breaks << [url, link] unless found.include?(link)
             end
           end
+          puts "#{pages.size} pages found."
           if breaks.empty?
             puts "No breaks found."
           else
