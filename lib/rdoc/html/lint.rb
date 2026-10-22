@@ -87,10 +87,10 @@ module Rdoc
 
                   link.fragment = nil
 
-                  link = link.to_s
+                  link_url = link.to_s
                   page.links << link
 
-                  queue << link unless visited.include?(link)
+                  queue << link_url unless visited.include?(link_url)
                 rescue URI::InvalidURIError
                   # Ignore malformed links.
                 end
@@ -104,7 +104,8 @@ module Rdoc
           breaks = []
           pages.each do |url, page|
             page.links.each do |link|
-              breaks << [url, link] unless found.include?(link)
+              link_url = link.to_s
+              breaks << [url, link_url] unless found.include?(link_url)
             end
           end
           puts "#{pages.size} pages found."
@@ -127,8 +128,8 @@ module Rdoc
           def initialize(url)
             self.url = url
             self.links = []
-
           end
+
         end
 
         class Error < StandardError; end
