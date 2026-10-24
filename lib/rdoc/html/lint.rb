@@ -81,16 +81,16 @@ module Rdoc
               response.body.to_enum(:scan, pattern).map { Regexp.last_match }.each do |match|
                 href = match[1]
                 begin
-                  link = URI.join(final_url, href)
+                  uri = URI.join(final_url, href)
 
-                  next unless link.scheme == 'https'
-                  next unless link.host == 'docs.ruby-lang.org'
-                  next unless link.path.start_with?('/en/master')
+                  next unless uri.scheme == 'https'
+                  next unless uri.host == 'docs.ruby-lang.org'
+                  next unless uri.path.start_with?('/en/master')
 
-                  link.fragment = nil
+                  uri.fragment = nil
 
-                  link_url = link.to_s
-                  page.links << link
+                  link_url = uri.to_s
+                  page.links << uri
 
                   queue << link_url unless visited.include?(link_url)
                 rescue URI::InvalidURIError
