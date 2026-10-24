@@ -77,7 +77,9 @@ module Rdoc
               content_type = response['content-type'].to_s
               next unless content_type.include?('text/html')
 
-              response.body.scan(/href\s*=\s*["']([^"']+)["']/i).flatten.each do |href|
+              pattern = /href\s*=\s*["']([^"']+)["']/i
+              response.body.to_enum(:scan, pattern).map { Regexp.last_match }.each do |match|
+                href = match[1]
                 begin
                   link = URI.join(final_url, href)
 
