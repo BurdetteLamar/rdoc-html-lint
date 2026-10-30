@@ -78,9 +78,18 @@ module Rdoc
               content_type = response['content-type'].to_s
               next unless content_type.include?('text/html')
 
-              pattern = /href\s*=\s*["']([^"']+)["']/i
-              response.body.to_enum(:scan, pattern).map { Regexp.last_match }.each do |match|
-                href = match[1]
+              html = response.body
+              pattern = %r{
+  <a\b
+  [^>]*?
+  href=(?<quote>['"])(?<href>.*?)\k<quote>
+  [^>]*>
+  (?<text>.*?)
+  </a>
+}imx
+              matches = html.to_enum(:scan, pattern).map { Regexp.last_match }
+              matches.each do |match|
+                href, text = match.values_at('href', 'text')
                 begin
                   uri = URI.join(final_url, href)
 
@@ -108,7 +117,7 @@ module Rdoc
 
           pages.each do |url, page|
             page.links.each do |link|
-              href = link[1]
+              href = link[:href]
               link_uri = URI.join(page.url, href)
               link_uri.fragment = nil
               link_url = link_uri.to_s
@@ -120,10 +129,9 @@ module Rdoc
             next if page.breaks.empty?
             puts "Page #{url}"
             page.breaks.each do |link|
-              link_url = link[1]
-              link_lineno = link.pre_match.count("\n") + 1
-              puts "  #{link_url}, line #{link_lineno}"
-              p link
+              href, text = link.values_at('href', 'text')
+              lineno = link.pre_match.count("\n") + 1
+              puts "  text=#{text} href=#{href} lineno=#{lineno}"
             end
           end
 
