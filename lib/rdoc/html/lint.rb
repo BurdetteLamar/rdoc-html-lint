@@ -72,6 +72,7 @@ module Rdoc
 
               next unless FOUND_CODES.include?(response.code)
 
+              page.response = response
               found << final_url
 
               content_type = response['content-type'].to_s
@@ -90,7 +91,7 @@ module Rdoc
                   uri.fragment = nil
 
                   link_url = uri.to_s
-                  page.links << uri
+                  page.links << match
 
                   queue << link_url unless visited.include?(link_url)
                 rescue URI::InvalidURIError
@@ -103,21 +104,22 @@ module Rdoc
             end
           end
 
-          breaks = []
+          puts "#{pages.size} pages found."
+
           pages.each do |url, page|
             page.links.each do |link|
-              link_url = link.to_s
-              breaks << [url, link_url] unless found.include?(link_url)
+              href = link[1]
+              link_uri = URI.join(page.url, href)
+              link_uri.fragment = nil
+              link_url = link_uri.to_s
+              page.breaks << link unless found.include?(link_url)
             end
           end
-          puts "#{pages.size} pages found."
-          if breaks.empty?
-            puts "No breaks found."
-          else
-            puts "#{breaks.size} breaks found."
-            breaks.each do |url, link|
-              puts "Source:  #{url}"
-              puts "Target:  #{link}"
+          pages.each do |url, page|
+            next if page.breaks.empty?
+            puts "Page #{url}"
+            page.breaks.each do |link|
+              puts '  ' + link[1]
             end
           end
 
@@ -125,11 +127,12 @@ module Rdoc
 
         class Page
 
-          attr_accessor :url, :links
+          attr_accessor :url, :links, :breaks, :response
 
           def initialize(url)
             self.url = url
             self.links = []
+            self.breaks = []
           end
 
         end
