@@ -112,14 +112,18 @@ module Rdoc
               link_uri = URI.join(page.url, href)
               link_uri.fragment = nil
               link_url = link_uri.to_s
-              page.breaks << link unless found.include?(link_url)
+              next if found.include?(link_url)
+              page.breaks << link
             end
           end
           pages.each do |url, page|
             next if page.breaks.empty?
             puts "Page #{url}"
             page.breaks.each do |link|
-              puts '  ' + link[1]
+              link_url = link[1]
+              link_lineno = link.pre_match.count("\n") + 1
+              puts "  #{link_url}, line #{link_lineno}"
+              p link
             end
           end
 
