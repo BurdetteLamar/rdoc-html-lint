@@ -52,7 +52,9 @@ module Rdoc
           found = Set.new
           pages = {}
           queue = [BASE_URL]
-
+          require 'fileutils'
+          FileUtils.rm_rf('html')
+          Dir.mkdir('html')
 
           while (url = queue.shift)
             next if visited.include?(url)
@@ -63,7 +65,12 @@ module Rdoc
               pages[url] = page
             end
 
+            next if BASE_URL == url + '/'
             puts url
+            path = url.sub(BASE_URL, '')
+            dirpath = File.join('html', File.dirname(path))
+            filepath = File.join(dirpath, File.basename(path))
+            FileUtils.mkdir_p(dirpath)
 
             begin
               response, final_url, _ = fetch(url)
@@ -76,9 +83,11 @@ module Rdoc
               found << final_url
 
               content_type = response['content-type'].to_s
-              next unless content_type.include?('text/html')
+              puts "Content-Type: #{'content_type'}" unless content_type.include?('text/html')
 
               html = response.body
+              filepath = 'html/home.html' if filepath == 'html/./'
+              File.write(filepath, html)
               pattern = %r{
   <a\b
   [^>]*?
@@ -114,6 +123,7 @@ module Rdoc
           end
 
           puts "#{pages.size} pages found."
+          exit
 
           pages.each do |url, page|
             page.links.each do |link|
@@ -131,7 +141,7 @@ module Rdoc
             page.breaks.each do |link|
               href, text = link.values_at('href', 'text')
               lineno = link.pre_match.count("\n") + 1
-              puts "  text=#{text} href=#{href} lineno=#{lineno}"
+              puts "  text='#{text}' href='#{href}' lineno=#{lineno}"
             end
           end
 
