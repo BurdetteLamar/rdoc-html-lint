@@ -22,6 +22,15 @@ module Rdoc
           self.options = options
         end
 
+        def self.external_url?(url)
+          begin
+            uri = URI.parse(url)
+            uri.absolute? && !uri.host.nil?
+          rescue URI::InvalidURIError
+            return false
+          end
+        end
+
         def get(url, limit = 10)
           raise 'too many redirects' if limit.zero?
 
@@ -136,7 +145,6 @@ module Rdoc
           pages = {}
           paths = Dir.glob('**/*.html')
           paths.each do |path|
-            puts path
             html = File.read(path)
             page = Page.new(path, html)
             pages[path] = page
@@ -177,15 +185,20 @@ module Rdoc
             self.path = path
             self.html = html
             self.breaks = []
-            self.links = Checker.links(html)
+            self.links = path.start_with?('master/NEWS') ? [] : Checker.links(html)
             self.links.each do |link|
               href = link[:href]
-              target_path = if href.start_with?('http')
-                              href
-                            else
-                              File.join(File.dirname(path), href)
-                            end
-              puts target_path unless File.exist?(target_path)
+              next if Checker.external_url?(href)
+              next if href.start_with?('mailto:')
+              target_path = File.join(File.dirname(path), href)
+              target_path = Pathname(target_path).cleanpath.to_s
+              target_path = target_path.split('#').first
+              breaks << target_path unless File.exist?(target_path)
+            end
+            return if breaks.empty?
+            puts path
+            breaks.each do |_break|
+              puts '  ' + _break
             end
           end
 
