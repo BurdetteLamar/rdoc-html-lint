@@ -16,12 +16,13 @@ module Rdoc
         OK_CODE = ['200']
         FOUND_CODES = OK_CODE + REDIRECT_CODES
 
+        attr_accessor :options
 
-        def initialize
-
+        def initialize(options)
+          self.options = options
         end
 
-        def fetch(url, limit = 10)
+        def get(url, limit = 10)
           raise 'too many redirects' if limit.zero?
 
           uri = URI(url)
@@ -41,62 +42,53 @@ module Rdoc
             raise "redirect without Location header" unless location
 
             target = URI.join(url, location).to_s
-            return [response, target, fetch(target, limit - 1)[2]]
+            return [response, target, get(target, limit - 1)[2]]
           end
 
           [response, url, nil]
         end
 
-        def run
+        def refresh
+          target_dir_path = File.basename(BASE_URL)
           visited = Set.new
           found = Set.new
-          pages = {}
           queue = [BASE_URL]
           require 'fileutils'
-          FileUtils.rm_rf('html')
-          Dir.mkdir('html')
+          FileUtils.rm_rf(target_dir_path)
+          Dir.mkdir(target_dir_path)
 
+          count = 0
           while (url = queue.shift)
             next if visited.include?(url)
 
-            page = pages[url]
-            unless page
-              page = Page.new(url)
-              pages[url] = page
-            end
-
             next if BASE_URL == url + '/'
-            puts url
+            # puts url
             path = url.sub(BASE_URL, '')
-            dirpath = File.join('html', File.dirname(path))
+            dirpath = File.join(target_dir_path, File.dirname(path))
             filepath = File.join(dirpath, File.basename(path))
             FileUtils.mkdir_p(dirpath)
 
             begin
-              response, final_url, _ = fetch(url)
+              response, final_url, _ = get(url)
               visited << final_url
               visited << url
 
               next unless FOUND_CODES.include?(response.code)
 
-              page.response = response
               found << final_url
 
               content_type = response['content-type'].to_s
-              puts "Content-Type: #{'content_type'}" unless content_type.include?('text/html')
+              next unless content_type.include?('text/html')
 
               html = response.body
-              filepath = 'html/home.html' if filepath == 'html/./'
+              if File.basename(filepath) == '.'
+                filepath = File.join(File.dirname(filepath), 'home.html')
+              end
+              filepath = Pathname(filepath).cleanpath
+              puts "Writing #{filepath}"
               File.write(filepath, html)
-              pattern = %r{
-  <a\b
-  [^>]*?
-  href=(?<quote>['"])(?<href>.*?)\k<quote>
-  [^>]*>
-  (?<text>.*?)
-  </a>
-}imx
-              matches = html.to_enum(:scan, pattern).map { Regexp.last_match }
+              count += 1
+              matches = Checker.links(html)
               matches.each do |match|
                 href, text = match.values_at('href', 'text')
                 begin
@@ -109,7 +101,6 @@ module Rdoc
                   uri.fragment = nil
 
                   link_url = uri.to_s
-                  page.links << match
 
                   queue << link_url unless visited.include?(link_url)
                 rescue URI::InvalidURIError
@@ -121,9 +112,39 @@ module Rdoc
               fail "  #{e.class}: #{e.message}"
             end
           end
+          puts "Wrote #{count} files"
 
-          puts "#{pages.size} pages found."
+        end
+
+        def self.links(html)
+          pattern = %r{
+  <a\b
+  [^>]*?
+  href=(?<quote>['"])(?<href>.*?)\k<quote>
+  [^>]*>
+  (?<text>.*?)
+  </a>
+}imx
+          html.to_enum(:scan, pattern).map { Regexp.last_match }
+        end
+        def run
+          refresh if options[:refresh]
+          analyze if options[:analyze]
+        end
+
+        def analyze
+          pages = {}
+          paths = Dir.glob('**/*.html')
+          paths.each do |path|
+            puts path
+            html = File.read(path)
+            page = Page.new(path, html)
+            pages[path] = page
+          end
+
+
           exit
+
 
           pages.each do |url, page|
             page.links.each do |link|
@@ -145,16 +166,27 @@ module Rdoc
             end
           end
 
+
         end
 
         class Page
 
-          attr_accessor :url, :links, :breaks, :response
+          attr_accessor :html, :path, :links, :breaks
 
-          def initialize(url)
-            self.url = url
-            self.links = []
+          def initialize(path, html)
+            self.path = path
+            self.html = html
             self.breaks = []
+            self.links = Checker.links(html)
+            self.links.each do |link|
+              href = link[:href]
+              target_path = if href.start_with?('http')
+                              href
+                            else
+                              File.join(File.dirname(path), href)
+                            end
+              puts target_path unless File.exist?(target_path)
+            end
           end
 
         end
