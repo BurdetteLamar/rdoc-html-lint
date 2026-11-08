@@ -31,7 +31,7 @@ module Rdoc
           end
         end
 
-        def get(url, limit = 10)
+        def self.get(url, limit = 10)
           raise 'too many redirects' if limit.zero?
 
           uri = URI(url)
@@ -51,7 +51,7 @@ module Rdoc
             raise "redirect without Location header" unless location
 
             target = URI.join(url, location).to_s
-            return [response, target, get(target, limit - 1)[2]]
+            return [response, target, self.get(target, limit - 1)[2]]
           end
 
           [response, url, nil]
@@ -78,7 +78,7 @@ module Rdoc
             FileUtils.mkdir_p(dirpath)
 
             begin
-              response, final_url, _ = get(url)
+              response, final_url, _ = Checker.get(url)
               visited << final_url
               visited << url
 
@@ -181,6 +181,8 @@ module Rdoc
 
           attr_accessor :html, :path, :links, :breaks
 
+          @@external_urls = {}
+
           def initialize(path, html)
             self.path = path
             self.html = html
@@ -188,7 +190,21 @@ module Rdoc
             self.links = path.start_with?('master/NEWS') ? [] : Checker.links(html)
             self.links.each do |link|
               href = link[:href]
-              next if Checker.external_url?(href)
+              if Checker.external_url?(href)
+                next if href.start_with?('ftp')
+                unless @@external_urls.include?(href)
+                  begin
+                    response, _, _ = Checker.get(href)
+                    puts "#{response.code} #{href}"
+                    @@external_urls[href] = Checker::FOUND_CODES.include?(response.code)
+                  rescue Socket::ResolutionError
+                    fail href
+                    @@external_urls[href] = false
+                  end
+                end
+                breaks << href unless @@external_urls
+                next
+              end
               next if href.start_with?('mailto:')
               target_path = File.join(File.dirname(path), href)
               target_path = Pathname(target_path).cleanpath.to_s
