@@ -67,6 +67,8 @@ module Rdoc
               File.write(filepath, html)
               page_count += 1
 
+              page = Page.new(url, path, html)
+
               matches = Checker.links(html)
               matches.each do |match|
                 href, text = match.values_at('href', 'text')
@@ -172,6 +174,13 @@ module Rdoc
           Time.now.strftime('%Y-%m-%d-%a-%H.%M.%S')
         end
 
+        def self.ids(html)
+          matches = []
+          html.to_enum(:scan, /\b(?<name>id|name)\s*=\s*(?:"(?<value>[^"]*)"|'(?<value>[^']*)'|(?<value>[^\s>]+))/i)
+              .each { matches << Regexp.last_match }
+          matches
+        end
+
         def self.links(html)
           pattern = %r{
   <a\b
@@ -182,6 +191,44 @@ module Rdoc
   </a>
 }imx
           html.to_enum(:scan, pattern).map { Regexp.last_match }
+        end
+      end
+
+      class Page
+        attr_accessor :url, :path, :html, :links, :ids
+
+        def initialize(url, path, html)
+          self.url = url
+          self.path = path
+          self.html = html
+          self.links = []
+          self.ids = []
+          matches = Checker.links(html)
+          matches.each do |match|
+            self.links << Link.new(match)
+          end
+          matches = Checker.ids(html)
+          matches.each do |match|
+            self.ids << Id.new(match)
+          end
+          
+        end
+      end
+
+      class Id
+        attr_accessor :name, :value
+        def initialize(match)
+          self.name = match['name']
+          self.value = match['value']
+        end
+      end
+
+      class Link
+        attr_accessor :lineno, :href, :text
+        def initialize(match)
+          self.lineno = match.pre_match.count("\n") + 1
+          self.href = match['href']
+          self.text = match['text']
         end
       end
     end
