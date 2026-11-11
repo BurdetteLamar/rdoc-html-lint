@@ -223,18 +223,28 @@ module Rdoc
 }imx
           html.to_enum(:scan, pattern).map { Regexp.last_match }
         end
+
+        def self.headings(html)
+          pattern = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
+          html.to_enum(:scan, pattern).map { Regexp.last_match }
+        end
       end
 
       class Page
-        attr_accessor :html, :links, :ids
+        attr_accessor :html, :links, :headings, :ids
 
         def initialize(html)
           self.html = html
+          self.headings = []
           self.links = []
           self.ids = {}
           matches = Checker.links(html)
           matches.each do |match|
             self.links << Link.new(match)
+          end
+          matches = Checker.headings(html)
+          matches.each do |match|
+            self.headings << Heading.new(match)
           end
           matches = Checker.ids(html)
           matches.each do |match|
@@ -245,8 +255,8 @@ module Rdoc
 
         def to_h
           {
-            # html: html,
             links: links.map(&:to_h),
+            headings: headings.map(&:to_h),
             ids: ids.transform_values(&:to_h)
           }
         end
@@ -302,6 +312,29 @@ module Rdoc
           {lineno: lineno, href: href, text: text}
         end
       end
+
+      class Heading
+        attr_accessor :lineno, :level, :text
+        def initialize(object)
+          case object
+          when MatchData
+            self.lineno = object.pre_match.count("\n") + 1
+            self.level = object['level']
+            self.text = object['text']
+          when Hash
+            self.lineno = object[:lineno]
+            self.href = object[:level]
+            self.text = object[:text]
+          else
+            raise ArgumentError.new('Argument must be a MatchData or a Hash')
+          end
+        end
+
+        def to_h
+          {lineno: lineno, level: level, text: text}
+        end
+      end
+
     end
   end
 end
