@@ -27,14 +27,17 @@ module Rdoc
           self.options = options
         end
 
+        # Fetch each page from the website.
+        # Put its HTML into a file in stashes/doc.
+        # Extract the links to on-site pages and queue them for fetching.
         def fetch
-          target_dir_path = File.join('stashes', Checker.timestamp, 'doc')
+          doc_dir_path = File.join('stashes', Checker.timestamp, 'doc')
           visited = Set.new
           found = Set.new
           queue = [BASE_URL]
           require 'fileutils'
-          FileUtils.mkdir_p(target_dir_path)
-          puts "Creating diretory #{target_dir_path}"
+          FileUtils.mkdir_p(doc_dir_path)
+          puts "Creating diretory #{doc_dir_path}"
 
           page_count = 0
           while (url = queue.shift)
@@ -43,7 +46,7 @@ module Rdoc
             next if BASE_URL == url + '/'
             puts "Fetching #{url}"
             path = url.sub(BASE_URL, '')
-            dirpath = File.join(target_dir_path, File.dirname(path))
+            dirpath = File.join(doc_dir_path, File.dirname(path))
             filepath = File.join(dirpath, File.basename(path))
             FileUtils.mkdir_p(dirpath)
 
@@ -89,7 +92,7 @@ module Rdoc
               fail "  #{e.class}: #{e.message}"
             end
           end
-          puts "Wrote #{page_count} files to #{target_dir_path}"
+          puts "Wrote #{page_count} files to #{doc_dir_path}"
 
         end
 
@@ -202,33 +205,66 @@ module Rdoc
           self.path = path
           self.html = html
           self.links = []
-          self.ids = []
+          self.ids = {}
           matches = Checker.links(html)
           matches.each do |match|
             self.links << Link.new(match)
           end
           matches = Checker.ids(html)
           matches.each do |match|
-            self.ids << Id.new(match)
+            id = Id.new(match)
+            ids[id.value] ||= id
           end
-          
+        end
+
+        def to_h
+          # attr_accessor :url, :path, :html, :links, :ids
+          h = {url: url, path:path}
         end
       end
 
       class Id
+
         attr_accessor :name, :value
-        def initialize(match)
-          self.name = match['name']
-          self.value = match['value']
+
+        def initialize(object)
+          case object
+          when MatchData
+            self.name = object[:name]
+            self.value = object[:value]
+          when Hash
+            self.name = object[:name]
+            self.value = object[:value]
+          else
+            raise ArgumentError.new('Argument must be a MatchData or a Hash')
+          end
         end
+
+        def to_h
+          {name: name, value: value}
+        end
+
       end
 
       class Link
         attr_accessor :lineno, :href, :text
-        def initialize(match)
-          self.lineno = match.pre_match.count("\n") + 1
-          self.href = match['href']
-          self.text = match['text']
+        def initialize(object)
+          case object
+          when MatchData
+            self.lineno = object.pre_match.count("\n") + 1
+            self.href = object['href']
+            self.text = object['text']
+          when Hash
+            self.lineno = object[:lineno]
+            self.href = object[:href]
+            self.text = object[:text]
+          else
+            raise ArgumentError.new('Argument must be a MatchData or a Hash')
+          end
+        end
+
+        def to_h
+          {lineno: lineno, href: href, text: text}
         end
       end
     end
