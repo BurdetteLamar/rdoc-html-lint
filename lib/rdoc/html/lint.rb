@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'cgi'
+require 'fileutils'
+require 'json'
 require 'net/http'
 require 'set'
 require 'uri'
@@ -35,7 +37,6 @@ module Rdoc
           visited = Set.new
           found = Set.new
           queue = [BASE_URL]
-          require 'fileutils'
           FileUtils.mkdir_p(doc_dir_path)
           puts "Creating diretory #{doc_dir_path}"
 
@@ -70,7 +71,7 @@ module Rdoc
               File.write(filepath, html)
               page_count += 1
 
-              page = Page.new(url, path, html)
+              page = Page.new(html)
 
               matches = Checker.links(html)
               matches.each do |match|
@@ -94,6 +95,24 @@ module Rdoc
           end
           puts "Wrote #{page_count} files to #{doc_dir_path}"
 
+        end
+
+        # Make a JSON precis for each page.
+        def precis
+          timestamp_dirpath = Checker.last_timestamp_dirpath
+          doc_dirpath = File.join(timestamp_dirpath, 'doc')
+          precis_dirpath = File.join(timestamp_dirpath, 'precis')
+          html_filepaths = Dir.glob("#{doc_dirpath}/**/*.html")
+          html_filepaths.each do |html_filepath|
+            html = File.read(html_filepath)
+            page = Page.new(html)
+            precis = page.to_json
+            precis_filepath = html_filepath.sub(doc_dirpath, precis_dirpath)
+            precis_filepath.sub!('.html', '.json')
+            FileUtils.mkdir_p(File.dirname(precis_filepath))
+            puts "Writing #{precis_filepath}"
+            File.write(precis_filepath,   precis)
+          end
         end
 
         # def analyze
@@ -177,6 +196,15 @@ module Rdoc
           Time.now.strftime('%Y-%m-%d-%a-%H.%M.%S')
         end
 
+        def self.last_timestamp_dirpath
+
+          timestamp_dirpaths = []
+          Dir.glob('stashes/*').select do |path|
+            timestamp_dirpaths << path if File.directory?(path)
+          end
+          timestamp_dirpaths.sort.last
+        end
+
         def self.ids(html)
           matches = []
           html.to_enum(:scan, /\b(?<name>id|name)\s*=\s*(?:"(?<value>[^"]*)"|'(?<value>[^']*)'|(?<value>[^\s>]+))/i)
@@ -198,11 +226,9 @@ module Rdoc
       end
 
       class Page
-        attr_accessor :url, :path, :html, :links, :ids
+        attr_accessor :html, :links, :ids
 
-        def initialize(url, path, html)
-          self.url = url
-          self.path = path
+        def initialize(html)
           self.html = html
           self.links = []
           self.ids = {}
@@ -218,9 +244,18 @@ module Rdoc
         end
 
         def to_h
-          # attr_accessor :url, :path, :html, :links, :ids
-          h = {url: url, path:path}
+          {
+            # html: html,
+            links: links.map(&:to_h),
+            ids: ids.transform_values(&:to_h)
+          }
         end
+
+
+        def to_json
+          JSON.pretty_generate(to_h)
+        end
+
       end
 
       class Id
