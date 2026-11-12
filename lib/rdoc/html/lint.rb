@@ -102,6 +102,7 @@ module Rdoc
             html = File.read(html_filepath)
             path = html_filepath.sub(doc_dirpath + '/', '')
             page = Page.new(html, path)
+            page.check_headings
             precis = page.to_json
             precis_filepath = html_filepath.sub(doc_dirpath, precis_dirpath)
             precis_filepath.sub!('.html', '.json')
@@ -266,6 +267,10 @@ module Rdoc
           matches.each do |match|
             headings << Heading.new(match)
           end
+          headings
+        end
+
+        def check_headings
           prev_level = 0
           headings.each_with_index do |heading, i|
             level = heading.level.to_i
@@ -277,7 +282,6 @@ module Rdoc
             end
             prev_level = level
           end
-          headings
         end
 
         def get_links
