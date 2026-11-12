@@ -173,13 +173,6 @@ module Rdoc
           timestamp_dirpaths.sort.last
         end
 
-        def self.ids(html)
-          matches = []
-          html.to_enum(:scan, /\b(?<name>id|name)\s*=\s*(?:"(?<value>[^"]*)"|'(?<value>[^']*)'|(?<value>[^\s>]+))/i)
-              .each { matches << Regexp.last_match }
-          matches
-        end
-
         def self.links(html)
           pattern = %r{
   <a\b
@@ -202,7 +195,7 @@ module Rdoc
           self.path = path
           self.headings = Heading.scan_html(html)
           self.links = get_links
-          self.ids = get_ids
+          self.ids = Id.scan_html(html)
         end
 
         def check_links(paths)
@@ -221,16 +214,6 @@ module Rdoc
             links << Link.new(match)
           end
           links
-        end
-
-        def get_ids
-          ids = {}
-          matches = Checker.ids(html)
-          matches.each do |match|
-            id = Id.new(match)
-            ids[id.value] ||= id
-          end
-          ids
         end
 
         def to_h
@@ -264,6 +247,18 @@ module Rdoc
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
+        end
+
+        def self.scan_html(html)
+          ids = {}
+          pattern = /\b(?<name>id|name)\s*=\s*(?:"(?<value>[^"]*)"|'(?<value>[^']*)'|(?<value>[^\s>]+))/i
+          matches = []
+          html.to_enum(:scan, pattern).each { matches << Regexp.last_match }
+          matches.each do |match|
+            id = Id.new(match)
+            ids[id.value] ||= id
+          end
+          ids
         end
 
         def to_h
