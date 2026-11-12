@@ -108,7 +108,7 @@ module Rdoc
           end
           paths = pages.keys
           pages.each_pair do |path, page|
-            page.check_headings
+            Heading.check_page(page)
             page.check_links(paths)
             precis = page.to_json
             precis_filepath = File.join(precis_dirpath, page.path).sub('.html', '.json')
@@ -117,64 +117,6 @@ module Rdoc
             File.write(precis_filepath, precis)
           end
         end
-
-        # Check links and headers for each page.
-        def check
-          timestamp_dirpath = Checker.last_timestamp_dirpath
-          precis_dirpath = File.join(timestamp_dirpath, 'precis')
-          precis_filepaths = Dir.glob("#{precis_dirpath}/**/*.json")
-          precis_filepaths.each do |precis_filepath|
-            json = File.read(precis_filepath)
-            s = JSON.parse(json)
-            # page = Page.new(html)
-            # precis = page.to_json
-            # precis_filepath = html_filepath.sub(doc_dirpath, precis_dirpath)
-            # precis_filepath.sub!('.html', '.json')
-            # FileUtils.mkdir_p(File.dirname(precis_filepath))
-            # puts "Writing #{precis_filepath}"
-            # File.write(precis_filepath,   precis)
-          end
-        end
-
-
-        # def analyze
-        #   # Gather the pages.0
-        #   # Sources are in the most-recent stash of the docs.
-        #   stash_dir = Dir.glob("stashes/*/").sort.last
-        #   source_dir = File.join(stash_dir, 'doc')
-        #   puts "Analyzing #{source_dir}"
-        #   pages = {} # Pages, by path.
-        #   paths = Dir.glob("#{source_dir}/*.html")
-        #   paths.each do |path|
-        #     puts "Checking #{path}"
-        #     html = File.read(path)
-        #     page = Page.new(path, html)
-        #     pages[path] = page
-        #   end
-        #
-        #   pages.each do |path, page|
-        #     page.links.each do |link|
-        #       href = link[:href]
-        #       p [page.path, href]
-        #       link_uri = URI.join(File.dirname(page.path), href)
-        #       link_uri.fragment = nil
-        #       link_url = link_uri.to_s
-        #       next if found.include?(link_url)
-        #       page.breaks << Break.new(link)
-        #     end
-        #   end
-        #   pages.each do |url, page|
-        #     next if page.breaks.empty?
-        #     puts "Page #{url}"
-        #     page.breaks.each do |link|
-        #       href, text = link.values_at('href', 'text')
-        #       lineno = link.pre_match.count("\n") + 1
-        #       puts "  text='#{text}' href='#{href}' lineno=#{lineno}"
-        #     end
-        #   end
-        # end
-
-
 
         # Return whether the URL is off-site (or invalid).
         def self.external_url?(url)
@@ -250,10 +192,6 @@ module Rdoc
           html.to_enum(:scan, pattern).map { Regexp.last_match }
         end
 
-        def self.headings(html)
-          pattern = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
-          html.to_enum(:scan, pattern).map { Regexp.last_match }
-        end
       end
 
       class Page
@@ -262,32 +200,9 @@ module Rdoc
         def initialize(html, path = nil)
           self.html = html
           self.path = path
-          self.headings = get_headings
+          self.headings = Heading.scan_html(html)
           self.links = get_links
           self.ids = get_ids
-        end
-
-        def get_headings
-          headings = []
-          matches = Checker.headings(html)
-          matches.each do |match|
-            headings << Heading.new(match)
-          end
-          headings
-        end
-
-        def check_headings
-          prev_level = 0
-          headings.each_with_index do |heading, i|
-            level = heading.level.to_i
-            jump_size = level - prev_level
-            if jump_size <= 1
-              heading.status = 'Ok'
-            else
-              heading.status = "Bad jump: #{prev_level} to #{level}"
-            end
-            prev_level = level
-          end
         end
 
         def check_links(paths)
@@ -397,6 +312,30 @@ module Rdoc
             self.status = object[:status]
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
+          end
+        end
+
+        def self.scan_html(html)
+          pattern = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
+          matches = html.to_enum(:scan, pattern).map { Regexp.last_match }
+          headings = []
+          matches.each do |match|
+            headings << Heading.new(match)
+          end
+          headings
+        end
+
+        def self.check_page(page)
+          prev_level = 0
+          page.headings.each_with_index do |heading, i|
+            level = heading.level.to_i
+            jump_size = level - prev_level
+            if jump_size <= 1
+              heading.status = 'Ok'
+            else
+              heading.status = "Bad jump: #{prev_level} to #{level}"
+            end
+            prev_level = level
           end
         end
 
