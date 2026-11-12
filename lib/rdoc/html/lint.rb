@@ -101,7 +101,6 @@ module Rdoc
           html_filepaths.each do |html_filepath|
             html = File.read(html_filepath)
             path = html_filepath.sub(doc_dirpath + '/', '')
-            p path
             page = Page.new(html, path)
             precis = page.to_json
             precis_filepath = html_filepath.sub(doc_dirpath, precis_dirpath)
@@ -271,7 +270,11 @@ module Rdoc
           self.headings.each_with_index do |heading, i|
             level = heading.level.to_i
             jump_size = level - prev_level
-            heading.status = (jump_size > 1) ? 'bad' : 'ok'
+            if jump_size <= 1
+              heading.status = 'Ok'
+            else
+              heading.status = "Bad jump: #{prev_level} to #{level}"
+            end
             prev_level = level
           end
           matches = Checker.ids(html)
