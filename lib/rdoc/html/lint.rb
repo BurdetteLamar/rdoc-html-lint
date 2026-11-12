@@ -68,11 +68,10 @@ module Rdoc
               File.write(filepath, html)
               page_count += 1
 
-              matches = Checker.links(html)
-              matches.each do |match|
-                href, text = match.values_at('href', 'text')
+              links = Link.scan_html(html)
+              links.each do |link|
                 begin
-                  uri = URI.join(final_url, href)
+                  uri = URI.join(final_url, link.href)
                   next unless uri.scheme == 'https'
                   next unless uri.host == 'docs.ruby-lang.org'
                   next unless uri.path.start_with?('/en/master')
@@ -83,7 +82,6 @@ module Rdoc
                   # Ignore malformed links.
                 end
               end
-
             rescue StandardError => e
               fail "  #{e.class}: #{e.message}"
             end
@@ -109,7 +107,7 @@ module Rdoc
           paths = pages.keys
           pages.each_pair do |path, page|
             Heading.check_page(page)
-            page.check_links(paths)
+            Link.check_page(page, paths)
             precis = page.to_json
             precis_filepath = File.join(precis_dirpath, page.path).sub('.html', '.json')
             FileUtils.mkdir_p(File.dirname(precis_filepath))
@@ -173,18 +171,6 @@ module Rdoc
           timestamp_dirpaths.sort.last
         end
 
-        def self.links(html)
-          pattern = %r{
-  <a\b
-  [^>]*?
-  href=(?<quote>['"])(?<href>.*?)\k<quote>
-  [^>]*>
-  (?<text>.*?)
-  </a>
-}imx
-          html.to_enum(:scan, pattern).map { Regexp.last_match }
-        end
-
       end
 
       class Page
@@ -194,26 +180,8 @@ module Rdoc
           self.html = html
           self.path = path
           self.headings = Heading.scan_html(html)
-          self.links = get_links
+          self.links = Link.scan_html(html)
           self.ids = Id.scan_html(html)
-        end
-
-        def check_links(paths)
-          links.each do |link|
-            href = link.href
-            next unless href.start_with?('./')
-            target_path = href.sub(%r[^\./], '')
-            link.status = paths.include?(target_path) ? 'ok' : path
-          end
-        end
-
-        def get_links
-          links = []
-          matches = Checker.links(html)
-          matches.each do |match|
-            links << Link.new(match)
-          end
-          links
         end
 
         def to_h
@@ -283,6 +251,32 @@ module Rdoc
             self.status = object[:status]
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
+          end
+        end
+
+        def self.scan_html(html)
+          links = []
+          pattern = %r{
+  <a\b
+  [^>]*?
+  href=(?<quote>['"])(?<href>.*?)\k<quote>
+  [^>]*>
+  (?<text>.*?)
+  </a>
+}imx
+          matches = html.to_enum(:scan, pattern).map { Regexp.last_match }
+          matches.each do |match|
+            links << Link.new(match)
+          end
+          links
+        end
+
+        def self.check_page(page, paths)
+          page.links.each do |link|
+            href = link.href
+            next unless href.start_with?('./')
+            target_path = href.sub(%r[^\./], '')
+            link.status = paths.include?(target_path) ? 'ok' : target_path
           end
         end
 
