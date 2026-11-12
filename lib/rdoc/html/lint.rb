@@ -255,19 +255,28 @@ module Rdoc
         def initialize(html, path = nil)
           self.html = html
           self.path = path
-          self.headings = []
+          self.headings = get_headings
           self.links = []
           self.ids = {}
           matches = Checker.links(html)
           matches.each do |match|
             self.links << Link.new(match)
           end
+          matches = Checker.ids(html)
+          matches.each do |match|
+            id = Id.new(match)
+            ids[id.value] ||= id
+          end
+        end
+
+        def get_headings
+          headings = []
           matches = Checker.headings(html)
           matches.each do |match|
-            self.headings << Heading.new(match)
+            headings << Heading.new(match)
           end
           prev_level = 0
-          self.headings.each_with_index do |heading, i|
+          headings.each_with_index do |heading, i|
             level = heading.level.to_i
             jump_size = level - prev_level
             if jump_size <= 1
@@ -277,13 +286,8 @@ module Rdoc
             end
             prev_level = level
           end
-          matches = Checker.ids(html)
-          matches.each do |match|
-            id = Id.new(match)
-            ids[id.value] ||= id
-          end
+          headings
         end
-
         def to_h
           {
             path: path,
