@@ -68,8 +68,6 @@ module Rdoc
               File.write(filepath, html)
               page_count += 1
 
-              page = Page.new(html)
-
               matches = Checker.links(html)
               matches.each do |match|
                 href, text = match.values_at('href', 'text')
@@ -102,7 +100,9 @@ module Rdoc
           html_filepaths = Dir.glob("#{doc_dirpath}/**/*.html")
           html_filepaths.each do |html_filepath|
             html = File.read(html_filepath)
-            page = Page.new(html)
+            path = html_filepath.sub(doc_dirpath + '/', '')
+            p path
+            page = Page.new(html, path)
             precis = page.to_json
             precis_filepath = html_filepath.sub(doc_dirpath, precis_dirpath)
             precis_filepath.sub!('.html', '.json')
@@ -251,10 +251,11 @@ module Rdoc
       end
 
       class Page
-        attr_accessor :html, :links, :headings, :ids
+        attr_accessor :html, :path, :links, :headings, :ids
 
-        def initialize(html)
+        def initialize(html, path = nil)
           self.html = html
+          self.path = path
           self.headings = []
           self.links = []
           self.ids = {}
@@ -282,6 +283,7 @@ module Rdoc
 
         def to_h
           {
+            path: path,
             links: links.map(&:to_h),
             headings: headings.map(&:to_h),
             ids: ids.transform_values(&:to_h)
