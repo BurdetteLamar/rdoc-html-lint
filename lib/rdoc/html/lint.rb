@@ -256,17 +256,8 @@ module Rdoc
           self.html = html
           self.path = path
           self.headings = get_headings
-          self.links = []
-          self.ids = {}
-          matches = Checker.links(html)
-          matches.each do |match|
-            self.links << Link.new(match)
-          end
-          matches = Checker.ids(html)
-          matches.each do |match|
-            id = Id.new(match)
-            ids[id.value] ||= id
-          end
+          self.links = get_links
+          self.ids = get_ids
         end
 
         def get_headings
@@ -288,6 +279,26 @@ module Rdoc
           end
           headings
         end
+
+        def get_links
+          links = []
+          matches = Checker.links(html)
+          matches.each do |match|
+            links << Link.new(match)
+          end
+          links
+        end
+
+        def get_ids
+          ids = {}
+          matches = Checker.ids(html)
+          matches.each do |match|
+            id = Id.new(match)
+            ids[id.value] ||= id
+          end
+          ids
+        end
+
         def to_h
           {
             path: path,
