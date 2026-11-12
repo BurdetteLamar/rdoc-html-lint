@@ -109,10 +109,11 @@ module Rdoc
           paths = pages.keys
           pages.each_pair do |path, page|
             page.check_headings
+            page.check_links(paths)
             precis = page.to_json
             precis_filepath = File.join(precis_dirpath, page.path).sub('.html', '.json')
             FileUtils.mkdir_p(File.dirname(precis_filepath))
-            puts "Writing #{precis_filepath}"
+            # puts "Writing #{precis_filepath}"
             File.write(precis_filepath, precis)
           end
         end
@@ -286,6 +287,15 @@ module Rdoc
               heading.status = "Bad jump: #{prev_level} to #{level}"
             end
             prev_level = level
+          end
+        end
+
+        def check_links(paths)
+          links.each do |link|
+            href = link.href
+            next unless href.start_with?('./')
+            target_path = href.sub(%r[^\./], '')
+            link.status = paths.include?(target_path) ? 'ok' : path
           end
         end
 
