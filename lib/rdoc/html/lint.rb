@@ -32,7 +32,7 @@ module Rdoc
         # Put its HTML into a file in stashes/doc.
         # Extract the links to on-site pages and queue them for fetching.
         def fetch
-          doc_dir_path = File.join('stashes', Checker.timestamp, 'doc')
+          doc_dir_path = Checker.new_doc_dirpath
           visited = Set.new
           found = Set.new
           queue = [BASE_URL]
@@ -209,9 +209,12 @@ module Rdoc
           [response, url, nil]
         end
 
-        # Timestamp for directory for the fetched docs and associated files.
-        def self.timestamp
-          Time.now.strftime('%Y-%m-%d-%a-%H.%M.%S')
+        # Create a directory for a new set of documents.
+        def self.new_doc_dirpath
+          time_s = Time.now.strftime('%Y-%m-%d-%a-%H.%M.%S')
+          dirpath = File.join('stashes', time_s, 'doc')
+          FileUtils.mkdir_p(dirpath)
+          dirpath
         end
 
         def self.last_timestamp_dirpath
