@@ -98,14 +98,19 @@ module Rdoc
           doc_dirpath = File.join(timestamp_dirpath, 'doc')
           precis_dirpath = File.join(timestamp_dirpath, 'precis')
           html_filepaths = Dir.glob("#{doc_dirpath}/**/*.html")
+          pages = {}
           html_filepaths.each do |html_filepath|
+            puts "Reading #{html_filepath}"
             html = File.read(html_filepath)
             path = html_filepath.sub(doc_dirpath + '/', '')
             page = Page.new(html, path)
+            pages[path] = page
+          end
+          paths = pages.keys
+          pages.each_pair do |path, page|
             page.check_headings
             precis = page.to_json
-            precis_filepath = html_filepath.sub(doc_dirpath, precis_dirpath)
-            precis_filepath.sub!('.html', '.json')
+            precis_filepath = File.join(precis_dirpath, page.path).sub('.html', '.json')
             FileUtils.mkdir_p(File.dirname(precis_filepath))
             puts "Writing #{precis_filepath}"
             File.write(precis_filepath, precis)
