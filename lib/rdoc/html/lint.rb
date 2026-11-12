@@ -36,8 +36,6 @@ module Rdoc
           visited = Set.new
           found = Set.new
           queue = [BASE_URL]
-          FileUtils.mkdir_p(doc_dir_path)
-          puts "Creating diretory #{doc_dir_path}"
 
           page_count = 0
           while (url = queue.shift)
@@ -213,6 +211,7 @@ module Rdoc
         def self.new_doc_dirpath
           time_s = Time.now.strftime('%Y-%m-%d-%a-%H.%M.%S')
           dirpath = File.join('stashes', time_s, 'doc')
+          puts "Creating diretory #{dirpath}"
           FileUtils.mkdir_p(dirpath)
           dirpath
         end
@@ -267,6 +266,13 @@ module Rdoc
           matches.each do |match|
             self.headings << Heading.new(match)
           end
+          prev_level = 0
+          self.headings.each_with_index do |heading, i|
+            level = heading.level.to_i
+            jump_size = level - prev_level
+            heading.status = (jump_size > 1) ? 'bad' : 'ok'
+            prev_level = level
+          end
           matches = Checker.ids(html)
           matches.each do |match|
             id = Id.new(match)
@@ -313,46 +319,50 @@ module Rdoc
       end
 
       class Link
-        attr_accessor :lineno, :href, :text
+        attr_accessor :lineno, :href, :text, :status
         def initialize(object)
           case object
           when MatchData
             self.lineno = object.pre_match.count("\n") + 1
             self.href = object['href']
             self.text = object['text']
+            self.status = 'unknown'
           when Hash
             self.lineno = object[:lineno]
             self.href = object[:href]
             self.text = object[:text]
+            self.status = object[:status]
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
         end
 
         def to_h
-          {lineno: lineno, href: href, text: text}
+          {lineno: lineno, href: href, text: text, status: status}
         end
       end
 
       class Heading
-        attr_accessor :lineno, :level, :text
+        attr_accessor :lineno, :level, :text, :status
         def initialize(object)
           case object
           when MatchData
             self.lineno = object.pre_match.count("\n") + 1
             self.level = object['level']
             self.text = object['text']
+            self.status = 'unknown'
           when Hash
             self.lineno = object[:lineno]
             self.href = object[:level]
             self.text = object[:text]
+            self.status = object[:status]
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
         end
 
         def to_h
-          {lineno: lineno, level: level, text: text}
+          {lineno: lineno, level: level, text: text, status: status}
         end
       end
 
