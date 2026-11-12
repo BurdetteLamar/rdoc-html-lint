@@ -22,7 +22,6 @@ module Rdoc
         # Both.
         FOUND_CODES = OK_CODE + REDIRECT_CODES
 
-        # Options (usually from the CLI).
         attr_accessor :options
 
         def initialize(options= {})
@@ -111,9 +110,28 @@ module Rdoc
             precis_filepath.sub!('.html', '.json')
             FileUtils.mkdir_p(File.dirname(precis_filepath))
             puts "Writing #{precis_filepath}"
-            File.write(precis_filepath,   precis)
+            File.write(precis_filepath, precis)
           end
         end
+
+        # Check links and headers for each page.
+        def check
+          timestamp_dirpath = Checker.last_timestamp_dirpath
+          precis_dirpath = File.join(timestamp_dirpath, 'precis')
+          precis_filepaths = Dir.glob("#{precis_dirpath}/**/*.json")
+          precis_filepaths.each do |precis_filepath|
+            json = File.read(precis_filepath)
+            s = JSON.parse(json)
+            # page = Page.new(html)
+            # precis = page.to_json
+            # precis_filepath = html_filepath.sub(doc_dirpath, precis_dirpath)
+            # precis_filepath.sub!('.html', '.json')
+            # FileUtils.mkdir_p(File.dirname(precis_filepath))
+            # puts "Writing #{precis_filepath}"
+            # File.write(precis_filepath,   precis)
+          end
+        end
+
 
         # def analyze
         #   # Gather the pages.0

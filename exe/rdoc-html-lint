@@ -10,12 +10,16 @@ options = {}
 OptionParser.new do |parser|
   parser.banner = 'Usage: rdoc-html-lint [options]'
 
-  parser.on('-p', '--precis', 'Make a précis for each page,') do
+  parser.on('-r', '--fetch', 'Fetch each page from the Ruby documentation site.') do
+    options[:fetch] = true
+  end
+
+  parser.on('-p', '--precis', 'Make a précis for each page.') do
     options[:precis] = true
   end
 
-  parser.on('-r', '--fetch', 'Fetch each page from the Ruby documentation site.') do
-    options[:fetch] = true
+  parser.on('-c', '--check', 'Check links and headers.') do
+    options[:check] = true
   end
 
   parser.on('-v', '--verbose', 'Enable verbose output.') do
@@ -32,3 +36,4 @@ end.parse!
 checker = Rdoc::Html::Lint::Checker.new
 checker.fetch if options[:fetch]
 checker.precis if options[:precis]
+checker.check if options[:check]
