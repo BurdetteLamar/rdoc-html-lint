@@ -266,6 +266,14 @@ module Rdoc
           end
         end
 
+        def uri
+          begin
+            URI.parse(self.href)
+          rescue URI::InvalidURIError
+            nil
+          end
+        end
+
         def self.links(html)
           links = []
           matches = html.to_enum(:scan, PATTERN).map { Regexp.last_match }
