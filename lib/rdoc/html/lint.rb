@@ -43,10 +43,6 @@ module Rdoc
 
             next if BASE_URL == url + '/'
             puts "Fetching #{url}"
-            path = url.sub(BASE_URL, '')
-            dirpath = File.join(doc_dir_path, File.dirname(path))
-            filepath = File.join(dirpath, File.basename(path))
-            FileUtils.mkdir_p(dirpath)
 
             begin
               response, final_url, _ = Checker.get(url)
@@ -61,11 +57,7 @@ module Rdoc
               next unless content_type.include?('text/html')
 
               html = response.body
-              if File.basename(filepath) == '.'
-                filepath = File.join(File.dirname(filepath), 'home.html')
-              end
-              filepath = Pathname(filepath).cleanpath
-              File.write(filepath, html)
+              write_html(html, url, doc_dir_path)
               page_count += 1
 
               links = Link.links(html)
@@ -88,6 +80,18 @@ module Rdoc
           end
           puts "Wrote #{page_count} files to #{doc_dir_path}"
 
+        end
+
+        def write_html(html, url, doc_dir_path)
+          path = url.sub(BASE_URL, '')
+          dirpath = File.join(doc_dir_path, File.dirname(path))
+          filepath = File.join(dirpath, File.basename(path))
+          FileUtils.mkdir_p(dirpath)
+          if File.basename(filepath) == '.'
+            filepath = File.join(File.dirname(filepath), 'home.html')
+          end
+          filepath = Pathname(filepath).cleanpath
+          File.write(filepath, html)
         end
 
         # Make a JSON precis for each page.
