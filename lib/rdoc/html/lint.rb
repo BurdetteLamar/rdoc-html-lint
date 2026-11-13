@@ -202,6 +202,8 @@ module Rdoc
 
       class Id
 
+        PATTERN = /\b(?<name>id|name)\s*=\s*(?:"(?<value>[^"]*)"|'(?<value>[^']*)'|(?<value>[^\s>]+))/i
+
         attr_accessor :name, :value
 
         def initialize(object)
@@ -219,9 +221,8 @@ module Rdoc
 
         def self.ids(html)
           ids = {}
-          pattern = /\b(?<name>id|name)\s*=\s*(?:"(?<value>[^"]*)"|'(?<value>[^']*)'|(?<value>[^\s>]+))/i
           matches = []
-          html.to_enum(:scan, pattern).each { matches << Regexp.last_match }
+          html.to_enum(:scan, PATTERN).each { matches << Regexp.last_match }
           matches.each do |match|
             id = Id.new(match)
             ids[id.value] ||= id
@@ -236,7 +237,18 @@ module Rdoc
       end
 
       class Link
+
+        PATTERN = %r{
+  <a\b
+  [^>]*?
+  href=(?<quote>['"])(?<href>.*?)\k<quote>
+  [^>]*>
+  (?<text>.*?)
+  </a>
+}imx
+
         attr_accessor :lineno, :href, :text, :status
+
         def initialize(object)
           case object
           when MatchData
@@ -256,15 +268,7 @@ module Rdoc
 
         def self.links(html)
           links = []
-          pattern = %r{
-  <a\b
-  [^>]*?
-  href=(?<quote>['"])(?<href>.*?)\k<quote>
-  [^>]*>
-  (?<text>.*?)
-  </a>
-}imx
-          matches = html.to_enum(:scan, pattern).map { Regexp.last_match }
+          matches = html.to_enum(:scan, PATTERN).map { Regexp.last_match }
           matches.each do |match|
             links << Link.new(match)
           end
@@ -286,7 +290,11 @@ module Rdoc
       end
 
       class Heading
+
+        PATTERN = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
+
         attr_accessor :lineno, :level, :text, :status
+
         def initialize(object)
           case object
           when MatchData
@@ -305,8 +313,7 @@ module Rdoc
         end
 
         def self.headings(html)
-          pattern = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
-          matches = html.to_enum(:scan, pattern).map { Regexp.last_match }
+          matches = html.to_enum(:scan, PATTERN).map { Regexp.last_match }
           headings = []
           matches.each do |match|
             headings << Heading.new(match)
