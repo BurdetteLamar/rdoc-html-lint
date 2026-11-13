@@ -235,7 +235,7 @@ module Rdoc
   </a>
 }imx
 
-        attr_accessor :lineno, :href, :text, :status
+        attr_accessor :lineno, :href, :text, :status, :type
 
         def initialize(object)
           case object
@@ -244,17 +244,41 @@ module Rdoc
             self.href = object['href']
             self.text = object['text']
             self.status = 'unknown'
+            self.type = get_type
           when Hash
             self.lineno = object[:lineno]
             self.href = object[:href]
             self.text = object[:text]
             self.status = object[:status]
+            self.type = object[:type]
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
         end
 
-        def uri
+        def get_type
+          uri = get_uri
+          char = href[0]
+          case
+          when uri.nil?
+            'invalid'  # Junk.
+          when !uri.scheme.nil?
+            'offsite'  # Offsite.
+          when char == '.'
+            'relative' # Relative to containing age.
+          when char == '#'
+            'fragment' # Free fragment.
+          when ('A'..'Z').include?(char)
+            'class'    # Class or module.
+          when ('a'..'z').include?(char)
+            'file'     # Ruby file.
+          else
+            message = "Couldn't determine link type for #{href}."
+            raise RuntimeError.new(message)
+          end
+        end
+
+        def get_uri
           begin
             URI.parse(self.href)
           rescue URI::InvalidURIError
@@ -281,7 +305,7 @@ module Rdoc
         end
 
         def to_h
-          {lineno: lineno, href: href, text: text, status: status}
+          {lineno: lineno, href: href, text: text, status: status, type: type}
         end
       end
 
