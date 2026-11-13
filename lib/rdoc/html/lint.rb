@@ -89,11 +89,11 @@ module Rdoc
           File.write(filepath, html)
         end
 
-        # Make a JSON precis for each page.
-        def precis
+        # Make a JSON evaluation for each page.
+        def evaluate
           timestamp_dirpath = Checker.last_timestamp_dirpath
           doc_dirpath = File.join(timestamp_dirpath, 'doc')
-          precis_dirpath = File.join(timestamp_dirpath, 'precis')
+          evaluation_dirpath = File.join(timestamp_dirpath, 'evaluation')
           html_filepaths = Dir.glob("#{doc_dirpath}/**/*.html")
           pages = {}
           html_filepaths.each do |html_filepath|
@@ -107,11 +107,11 @@ module Rdoc
           pages.each_pair do |path, page|
             Heading.check_page(page)
             Link.check_page(page, paths)
-            precis = page.to_json
-            precis_filepath = File.join(precis_dirpath, page.path).sub('.html', '.json')
-            FileUtils.mkdir_p(File.dirname(precis_filepath))
-            # puts "Writing #{precis_filepath}"
-            File.write(precis_filepath, precis)
+            evaluation = page.to_json
+            evaluation_filepath = File.join(evaluation_dirpath, page.path).sub('.html', '.json')
+            FileUtils.mkdir_p(File.dirname(evaluation_filepath))
+            # puts "Writing #{evaluation_filepath}"
+            File.write(evaluation_filepath, evaluation)
           end
         end
 

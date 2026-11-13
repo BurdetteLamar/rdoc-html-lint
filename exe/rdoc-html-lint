@@ -14,8 +14,8 @@ OptionParser.new do |parser|
     options[:fetch] = true
   end
 
-  parser.on('-p', '--precis', 'Make a précis for each page.') do
-    options[:precis] = true
+  parser.on('-p', '--evaluate', 'Evaluate each page.') do
+    options[:evaluate] = true
   end
 
   parser.on('-c', '--check', 'Check links and headers.') do
@@ -35,5 +35,5 @@ end.parse!
 
 checker = Rdoc::Html::Lint::Checker.new
 checker.fetch if options[:fetch]
-checker.precis if options[:precis]
+checker.evaluate if options[:evaluate]
 checker.check if options[:check]
