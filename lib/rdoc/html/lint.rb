@@ -313,7 +313,7 @@ module Rdoc
 
         PATTERN = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
 
-        attr_accessor :lineno, :level, :text, :status
+        attr_accessor :lineno, :level, :text, :errors, :warnings
 
         def initialize(object)
           case object
@@ -321,12 +321,14 @@ module Rdoc
             self.lineno = object.pre_match.count("\n") + 1
             self.level = object['level']
             self.text = object['text']
-            self.status = 'unknown'
+            self.errors = []
+            self.warnings = []
           when Hash
             self.lineno = object[:lineno]
             self.href = object[:level]
             self.text = object[:text]
-            self.status = object[:status]
+            self.errors = []
+            self.warnings = []
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -345,18 +347,19 @@ module Rdoc
           prev_level = 0
           page.headings.each_with_index do |heading, i|
             level = heading.level.to_i
+            if (i == 0) && (level != 1)
+              heading.warnings << "First heading should be level 1, not #{level}."
+            end
             jump_size = level - prev_level
-            if jump_size <= 1
-              heading.status = 'Ok'
-            else
-              heading.status = "Bad jump: #{prev_level} to #{level}"
+            if jump_size > 1
+              heading.errors << "Bad jump: #{prev_level} to #{level}."
             end
             prev_level = level
           end
         end
 
         def to_h
-          {lineno: lineno, level: level, text: text, status: status}
+          {lineno: lineno, level: level, text: text, errors: errors, warnings: warnings}
         end
       end
 
