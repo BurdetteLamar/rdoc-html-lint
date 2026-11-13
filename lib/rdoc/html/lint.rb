@@ -32,46 +32,40 @@ module Rdoc
         # Put its HTML into a file in stashes/doc.
         # Extract the links to on-site pages and queue them for fetching.
         def fetch
+          # Create a new doc directory (with a timestamp).
           doc_dir_path = Checker.new_doc_dirpath
-          visited = Set.new
-          found = Set.new
-          queue = [BASE_URL]
-
+          visited = Set.new   # Visit only once.
+          found = Set.new     # Those that are found.
+          queue = [BASE_URL]  # Prime with home page.
           page_count = 0
           while (url = queue.shift)
             next if visited.include?(url)
-
             next if BASE_URL == url + '/'
             puts "Fetching #{url}"
-
             begin
               response, final_url, _ = Checker.get(url)
               visited << final_url
               visited << url
-
               next unless FOUND_CODES.include?(response.code)
-
               found << final_url
-
               content_type = response['content-type'].to_s
               next unless content_type.include?('text/html')
-
               html = response.body
               write_html(html, url, doc_dir_path)
               page_count += 1
-
               links = Link.links(html)
               links.each do |link|
                 begin
                   uri = URI.join(final_url, link.href)
+                  # Must be one of ours.
                   next unless uri.scheme == 'https'
                   next unless uri.host == 'docs.ruby-lang.org'
                   next unless uri.path.start_with?('/en/master')
-                  uri.fragment = nil
+                  uri.fragment = nil # No fragment.
                   link_url = uri.to_s
                   queue << link_url unless visited.include?(link_url)
                 rescue URI::InvalidURIError
-                  # Ignore malformed links.
+                  # Ignore malformed link.
                 end
               end
             rescue StandardError => e
@@ -82,6 +76,7 @@ module Rdoc
 
         end
 
+        # Write the captured HTML to a file in doc directory.
         def write_html(html, url, doc_dir_path)
           path = url.sub(BASE_URL, '')
           dirpath = File.join(doc_dir_path, File.dirname(path))
@@ -117,16 +112,6 @@ module Rdoc
             FileUtils.mkdir_p(File.dirname(precis_filepath))
             # puts "Writing #{precis_filepath}"
             File.write(precis_filepath, precis)
-          end
-        end
-
-        # Return whether the URL is off-site (or invalid).
-        def self.external_url?(url)
-          begin
-            uri = URI.parse(url)
-            uri.absolute? && !uri.host.nil?
-          rescue URI::InvalidURIError
-            return true
           end
         end
 
@@ -167,7 +152,6 @@ module Rdoc
         end
 
         def self.last_timestamp_dirpath
-
           timestamp_dirpaths = []
           Dir.glob('stashes/*').select do |path|
             timestamp_dirpaths << path if File.directory?(path)
