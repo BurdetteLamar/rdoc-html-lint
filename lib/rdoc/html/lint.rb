@@ -68,7 +68,7 @@ module Rdoc
               File.write(filepath, html)
               page_count += 1
 
-              links = Link.scan_html(html)
+              links = Link.links(html)
               links.each do |link|
                 begin
                   uri = URI.join(final_url, link.href)
@@ -179,9 +179,9 @@ module Rdoc
         def initialize(html, path = nil)
           self.html = html
           self.path = path
-          self.headings = Heading.scan_html(html)
-          self.links = Link.scan_html(html)
-          self.ids = Id.scan_html(html)
+          self.headings = Heading.headings(html)
+          self.links = Link.links(html)
+          self.ids = Id.ids(html)
         end
 
         def to_h
@@ -217,7 +217,7 @@ module Rdoc
           end
         end
 
-        def self.scan_html(html)
+        def self.ids(html)
           ids = {}
           pattern = /\b(?<name>id|name)\s*=\s*(?:"(?<value>[^"]*)"|'(?<value>[^']*)'|(?<value>[^\s>]+))/i
           matches = []
@@ -254,7 +254,7 @@ module Rdoc
           end
         end
 
-        def self.scan_html(html)
+        def self.links(html)
           links = []
           pattern = %r{
   <a\b
@@ -304,7 +304,7 @@ module Rdoc
           end
         end
 
-        def self.scan_html(html)
+        def self.headings(html)
           pattern = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
           matches = html.to_enum(:scan, pattern).map { Regexp.last_match }
           headings = []
