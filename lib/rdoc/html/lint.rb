@@ -80,24 +80,14 @@ module Rdoc
 
         # Evaluate each HTML file.
         def evaluate
-          pages = {}
           snapshot = Snapshot.new(:latest)
           paths = snapshot.html_paths
           paths.each do |path|
             html = snapshot.read_html(path)
             page = Page.new(html)
-            pages[path] = page
-          end
-          return
-          paths = pages.keys
-          pages.each_pair do |path, page|
             Heading.check_page(page)
             Link.check_page(page, paths)
-            evaluation = page.to_json
-            evaluation_filepath = File.join(evaluation_dirpath, page.path).sub('.html', '.json')
-            FileUtils.mkdir_p(File.dirname(evaluation_filepath))
-            # puts "Writing #{evaluation_filepath}"
-            File.write(evaluation_filepath, evaluation)
+            snapshot.write_evaluation(path, page)
           end
         end
 
@@ -457,12 +447,19 @@ module Rdoc
         end
 
         def evaluation_filepath(path)
-          filename = File.basename(path, File.extname(path)) + EVALUATION_EXTENSION
-          File.join(evaluation_dirpath, filename)
+          filepath = path.sub(File.extname(path), EVALUATION_EXTENSION)
+          File.join(evaluation_dirpath, filepath)
         end
 
-        def write_evaluation(path)
-          File.write(evaluation_filepath(path), evaluation)
+        def write_evaluation(path, page)
+          json = page.to_json
+          filepath = evaluation_filepath(path)
+          file_dirpath = File.dirname(filepath)
+          if file_dirpath != html_dirpath
+            FileUtils.mkdir_p(file_dirpath)
+          end
+          puts "Writing #{filepath}"
+          File.write(filepath, json)
         end
 
         def read_evaluation(path)
