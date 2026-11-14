@@ -28,12 +28,10 @@ module Rdoc
           self.options = options
         end
 
-        # Fetch each page from the website.
-        # Put its HTML into a file in stashes/doc.
+        # Download and store each HTML page from the website.
         # Extract the links to on-site pages and queue them for fetching.
-        def fetch
-          # Create a new doc directory (with a timestamp).
-          doc_dir_path = Checker.new_doc_dirpath
+        def download
+          snapshot = Snapshot.new(:new)
           visited = Set.new   # Visit only once.
           found = Set.new     # Those that are found.
           queue = [BASE_URL]  # Prime with home page.
@@ -51,7 +49,11 @@ module Rdoc
               content_type = response['content-type'].to_s
               next unless content_type.include?('text/html')
               html = response.body
-              write_html(html, url, doc_dir_path)
+              path = url.sub(BASE_URL, '')
+              unless path.empty? # Don't write the home page.
+                snapshot.write_html(path, html)
+              end
+
               page_count += 1
               links = Link.links(html)
               links.each do |link|
@@ -72,27 +74,27 @@ module Rdoc
               fail "  #{e.class}: #{e.message}"
             end
           end
-          puts "Wrote #{page_count} files to #{doc_dir_path}"
+          puts "Wrote #{page_count} files to #{snapshot.html_dirpath}"
 
         end
 
-        # Write the captured HTML to a file in doc directory.
-        def write_html(html, url, doc_dir_path)
-          path = url.sub(BASE_URL, '')
-          dirpath = File.join(doc_dir_path, File.dirname(path))
-          filepath = File.join(dirpath, File.basename(path))
-          FileUtils.mkdir_p(dirpath)
-          if File.basename(filepath) == '.'
-            filepath = File.join(File.dirname(filepath), 'home.html')
-          end
-          filepath = Pathname(filepath).cleanpath
-          File.write(filepath, html)
-        end
+        # # Write the captured HTML to a file in doc directory.
+        # def write_html(html, url, doc_dir_path)
+        #   path = url.sub(BASE_URL, '')
+        #   dirpath = File.join(doc_dir_path, File.dirname(path))
+        #   filepath = File.join(dirpath, File.basename(path))
+        #   FileUtils.mkdir_p(dirpath)
+        #   if File.basename(filepath) == '.'
+        #     filepath = File.join(File.dirname(filepath), 'home.html')
+        #   end
+        #   filepath = Pathname(filepath).cleanpath
+        #   File.write(filepath, html)
+        # end
 
         # Make a JSON evaluation for each page.
         def evaluate
           timestamp_dirpath = Checker.last_timestamp_dirpath
-          doc_dirpath = File.join(timestamp_dirpath, 'doc')
+          doc_dirpath = File.join(timestamp_dirpath, 'html')
           evaluation_dirpath = File.join(timestamp_dirpath, 'evaluation')
           html_filepaths = Dir.glob("#{doc_dirpath}/**/*.html")
           pages = {}
@@ -112,6 +114,32 @@ module Rdoc
             FileUtils.mkdir_p(File.dirname(evaluation_filepath))
             # puts "Writing #{evaluation_filepath}"
             File.write(evaluation_filepath, evaluation)
+          end
+        end
+
+        # Make a report for each page.
+        def report
+          timestamp_dirpath = Checker.last_timestamp_dirpath
+          evaluation_dirpath = File.join(timestamp_dirpath, 'evaluation')
+          report_dirpath = File.join(timestamp_dirpath, 'report')
+          json_filepaths = Dir.glob("#{evaluation_dirpath}/**/*.json")
+          pages = {}
+          json_filepaths.each do |json_filepath|
+            puts "Reading #{json_filepath}"
+            "Reading #{json_filepath}"
+            json = File.read(json_filepath)
+            path = json_filepath.sub(evaluation_dirpath + '/', '')
+            hash = JSON.parse(json)
+            page = Page.new(hash, path)
+            pages[path] = page
+          end
+          pages.each_pair do |path, page|
+            report_filepath = File.join(report_dirpath, page.path).sub('.html', '.txt')
+            puts "Creating #{report_dirpath}"
+            FileUtils.mkdir_p(report_dirpath)
+            s = ''
+            puts "Writing #{report_filepath}"
+            File.write(report_filepath, s)
           end
         end
 
@@ -142,34 +170,36 @@ module Rdoc
           [response, url, nil]
         end
 
-        # Create a directory for a new set of documents.
-        def self.new_doc_dirpath
-          time_s = Time.now.strftime('%Y-%m-%d-%a-%H.%M.%S')
-          dirpath = File.join('stashes', time_s, 'doc')
-          puts "Creating diretory #{dirpath}"
-          FileUtils.mkdir_p(dirpath)
-          dirpath
-        end
-
-        def self.last_timestamp_dirpath
-          timestamp_dirpaths = []
-          Dir.glob('stashes/*').select do |path|
-            timestamp_dirpaths << path if File.directory?(path)
-          end
-          timestamp_dirpaths.sort.last
-        end
-
       end
 
       class Page
         attr_accessor :html, :path, :links, :headings, :ids
 
-        def initialize(html, path = nil)
-          self.html = html
-          self.path = path
-          self.headings = Heading.headings(html)
-          self.links = Link.links(html)
-          self.ids = Id.ids(html)
+        def initialize(object, path = nil)
+          case object
+          when String
+            self.html = html
+            self.path = path
+            self.headings = Heading.headings(html)
+            self.links = Link.links(html)
+            self.ids = Id.ids(html)
+          when Hash
+            self.path = object['path']
+            self.headings = []
+            object['headings'].each do |heading|
+              self.headings << Heading.new(heading)
+            end
+            self.links = []
+            object['links'].each do |link|
+              self.links << Link.new(link)
+            end
+            self.ids = {}
+            object['ids'].each_pair do |id, data|
+              self.ids[id] = Id.new(data)
+            end
+          else
+            raise ArgumentError.new('Argument must be a String or a Hash')
+          end
         end
 
         def to_h
@@ -324,11 +354,11 @@ module Rdoc
             self.errors = []
             self.warnings = []
           when Hash
-            self.lineno = object[:lineno]
-            self.href = object[:level]
-            self.text = object[:text]
-            self.errors = []
-            self.warnings = []
+            self.lineno = object[lineno]
+            self.level = object['level']
+            self.text = object['text']
+            self.errors = object['errors']
+            self.warnings = object['warnings']
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -363,6 +393,99 @@ module Rdoc
         end
       end
 
+      # Class to handle snapshots in an orderly manner.
+      class Snapshot
+
+        # Paths and file extensions.
+        SNAPSHOT_DIRNAME = 'snapshot'
+        HTML_DIRNAME,       HTML_EXTENSION =       %w[html       .html]
+        EVALUATION_DIRNAME, EVALUATION_EXTENSION = %w[evaluation .json]
+        REPORT_DIRNAME,     REPORT_EXTENSION =     %w[report     .txt]
+
+        # The directory paths.
+        attr_accessor :timestamp_dirpath,
+                      :html_dirpath,
+                      :evaluation_dirpath,
+                      :report_dirpath
+
+        # Return a new Path object with an established timestamp directory.
+        def initialize(which)
+          valid_args = %i[new latest]
+          unless valid_args.include?(which)
+            message = "Argument which must be one of #{valid_args.inspect}."
+            raise ArgumentError.new(message)
+          end
+          if which == :new
+            # Create new timestamp directory.
+            timestamp = Time.now.strftime('%Y-%m-%d-%a-%H.%M.%S')
+            self.timestamp_dirpath = File.join(SNAPSHOT_DIRNAME, timestamp)
+          else
+            # Find latest timestamp directory.
+            timestamp_dirpaths = []
+            Dir.glob("#{SNAPSHOT_DIRNAME}/*").select do |path|
+              timestamp_dirpaths << path if File.directory?(path)
+            end
+            self.timestamp_dirpath = timestamp_dirpaths.sort.last
+          end
+          # Set the other dirpaths.
+          self.html_dirpath = File.join(self.timestamp_dirpath, HTML_DIRNAME)
+          self.evaluation_dirpath = File.join(self.timestamp_dirpath, EVALUATION_DIRNAME)
+          self.report_dirpath = File.join(self.timestamp_dirpath, REPORT_DIRNAME)
+          if which == :new
+            # Create the directories.
+            FileUtils.mkdir_p(self.timestamp_dirpath)
+            FileUtils.mkdir_p(self.html_dirpath)
+            FileUtils.mkdir_p(self.evaluation_dirpath)
+            FileUtils.mkdir_p(self.report_dirpath)
+          end
+        end
+
+        def html_filepath(path)
+          filepath = path.sub(File.extname(path), HTML_EXTENSION)
+          File.join(html_dirpath, filepath)
+        end
+
+        def write_html(path, html)
+          filepath = html_filepath(path)
+          file_dirpath = File.dirname(filepath)
+          if file_dirpath != html_dirpath
+            FileUtils.mkdir_p(file_dirpath)
+          end
+          puts "Writing #{filepath}"
+          File.write(filepath, html)
+        end
+
+        def read_html(path)
+          File.read(html_filepath(path))
+        end
+
+        def evaluation_filepath(path)
+          filename = File.basename(path, File.extname(path)) + EVALUATION_EXTENSION
+          File.join(evaluation_dirpath, filename)
+        end
+
+        def write_evaluation(path)
+          File.write(evaluation_filepath(path), evaluation)
+        end
+
+        def read_evaluation(path)
+          File.read(evaluation_filepath(path))
+        end
+
+        def report_filepath(path)
+          filename = File.basename(path, File.extname(path)) + report_EXTENSION
+          File.join(report_dirpath, filename)
+        end
+
+        def write_report(path)
+          File.write(report_filepath(path), report)
+        end
+
+        def read_report(path)
+          File.read(report_filepath(path))
+        end
+
+      end
     end
   end
 end
