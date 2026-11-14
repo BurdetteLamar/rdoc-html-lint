@@ -78,21 +78,12 @@ module Rdoc
 
         end
 
-        # # Write the captured HTML to a file in doc directory.
-        # def write_html(html, url, doc_dir_path)
-        #   path = url.sub(BASE_URL, '')
-        #   dirpath = File.join(doc_dir_path, File.dirname(path))
-        #   filepath = File.join(dirpath, File.basename(path))
-        #   FileUtils.mkdir_p(dirpath)
-        #   if File.basename(filepath) == '.'
-        #     filepath = File.join(File.dirname(filepath), 'home.html')
-        #   end
-        #   filepath = Pathname(filepath).cleanpath
-        #   File.write(filepath, html)
-        # end
-
-        # Make a JSON evaluation for each page.
+        # Evaluate each HTML file.
         def evaluate
+          snapshot = Snapshot.new(:latest)
+          filepaths = snapshot.html_filepaths
+          puts filepaths
+          exit
           timestamp_dirpath = Checker.last_timestamp_dirpath
           doc_dirpath = File.join(timestamp_dirpath, 'html')
           evaluation_dirpath = File.join(timestamp_dirpath, 'evaluation')
@@ -421,11 +412,12 @@ module Rdoc
             self.timestamp_dirpath = File.join(SNAPSHOT_DIRNAME, timestamp)
           else
             # Find latest timestamp directory.
-            timestamp_dirpaths = []
-            Dir.glob("#{SNAPSHOT_DIRNAME}/*").select do |path|
-              timestamp_dirpaths << path if File.directory?(path)
+            dirpaths = []
+            glob = File.join(SNAPSHOT_DIRNAME, '**')
+            Dir.glob(glob).select do |path|
+              dirpaths << path if File.directory?(path)
             end
-            self.timestamp_dirpath = timestamp_dirpaths.sort.last
+            self.timestamp_dirpath = dirpaths.sort.last
           end
           # Set the other dirpaths.
           self.html_dirpath = File.join(self.timestamp_dirpath, HTML_DIRNAME)
@@ -438,6 +430,15 @@ module Rdoc
             FileUtils.mkdir_p(self.evaluation_dirpath)
             FileUtils.mkdir_p(self.report_dirpath)
           end
+        end
+
+        def html_filepaths
+          filepaths = []
+          glob = File.join(html_dirpath, '**', '*' + HTML_EXTENSION)
+          Dir.glob(glob).select do |path|
+            filepaths << path if File.extname(path) == HTML_EXTENSION
+          end
+          filepaths
         end
 
         def html_filepath(path)
