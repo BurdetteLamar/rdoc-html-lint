@@ -80,22 +80,15 @@ module Rdoc
 
         # Evaluate each HTML file.
         def evaluate
-          snapshot = Snapshot.new(:latest)
-          filepaths = snapshot.html_filepaths
-          puts filepaths
-          exit
-          timestamp_dirpath = Checker.last_timestamp_dirpath
-          doc_dirpath = File.join(timestamp_dirpath, 'html')
-          evaluation_dirpath = File.join(timestamp_dirpath, 'evaluation')
-          html_filepaths = Dir.glob("#{doc_dirpath}/**/*.html")
           pages = {}
-          html_filepaths.each do |html_filepath|
-            puts "Reading #{html_filepath}"
-            html = File.read(html_filepath)
-            path = html_filepath.sub(doc_dirpath + '/', '')
-            page = Page.new(html, path)
+          snapshot = Snapshot.new(:latest)
+          paths = snapshot.html_paths
+          paths.each do |path|
+            html = snapshot.read_html(path)
+            page = Page.new(html)
             pages[path] = page
           end
+          return
           paths = pages.keys
           pages.each_pair do |path, page|
             Heading.check_page(page)
@@ -169,6 +162,7 @@ module Rdoc
         def initialize(object, path = nil)
           case object
           when String
+            html = object
             self.html = html
             self.path = path
             self.headings = Heading.headings(html)
@@ -432,10 +426,10 @@ module Rdoc
           end
         end
 
-        def html_filepaths
+        def html_paths
           filepaths = []
-          glob = File.join(html_dirpath, '**', '*' + HTML_EXTENSION)
-          Dir.glob(glob).select do |path|
+          glob = File.join('**', '*' + HTML_EXTENSION)
+          Dir.glob(glob, base: html_dirpath).select do |path|
             filepaths << path if File.extname(path) == HTML_EXTENSION
           end
           filepaths
@@ -457,7 +451,9 @@ module Rdoc
         end
 
         def read_html(path)
-          File.read(html_filepath(path))
+          filepath = html_filepath(path)
+          puts "Reading #{filepath}"
+          File.read(filepath)
         end
 
         def evaluation_filepath(path)
