@@ -4,6 +4,7 @@ require 'cgi'
 require 'fileutils'
 require 'json'
 require 'net/http'
+require 'rexml/document'
 require 'set'
 require 'uri'
 require_relative "lint/version"
@@ -81,40 +82,54 @@ module Rdoc
         # Evaluate each HTML file.
         def evaluate
           snapshot = Snapshot.new(:latest)
+          pages = {}
           paths = snapshot.html_paths
           paths.each do |path|
             html = snapshot.read_html(path)
             page = Page.new(html)
+            pages[path] = page
+          end
+          pages.each_pair do |path, page|
             Heading.check_page(page)
             Link.check_page(page, paths)
             snapshot.write_evaluation(path, page)
           end
         end
 
-        # Make a report for each page.
+        # Create a report.
         def report
-          timestamp_dirpath = Checker.last_timestamp_dirpath
-          evaluation_dirpath = File.join(timestamp_dirpath, 'evaluation')
-          report_dirpath = File.join(timestamp_dirpath, 'report')
-          json_filepaths = Dir.glob("#{evaluation_dirpath}/**/*.json")
+          snapshot = Snapshot.new(:latest)
           pages = {}
-          json_filepaths.each do |json_filepath|
-            puts "Reading #{json_filepath}"
-            "Reading #{json_filepath}"
-            json = File.read(json_filepath)
-            path = json_filepath.sub(evaluation_dirpath + '/', '')
+          paths = snapshot.evaluation_paths
+          paths.each do |path|
+            json = snapshot.read_evaluation(path)
             hash = JSON.parse(json)
-            page = Page.new(hash, path)
+            page = Page.new(hash)
             pages[path] = page
           end
+          lines = []
           pages.each_pair do |path, page|
-            report_filepath = File.join(report_dirpath, page.path).sub('.html', '.txt')
-            puts "Creating #{report_dirpath}"
-            FileUtils.mkdir_p(report_dirpath)
-            s = ''
-            puts "Writing #{report_filepath}"
-            File.write(report_filepath, s)
+            page.headings.each do |heading|
+              heading.errors.shift if heading.errors.first == "Bad jump: 1 to 3."
+              unless heading.errors.empty? && heading.warnings.empty?
+                lines << "Page #{path} heading:"
+                level, lineno, text = heading.to_h.values_at(:level, :lineno, :text)
+                lines << "  Level: #{level}"
+                lines << "  Lineno: #{lineno}"
+                lines << "  Text: '#{text}'"
+                heading.errors.each do |error|
+                  lines << "    Error: #{error}"
+                end
+                heading.warnings.each do |warning|
+                  lines << "    Warning: #{warning}"
+                end
+              end
+            end
           end
+          report = lines.join("\n")
+          puts report
+          # snapshot.write_report(path, report)
+
         end
 
         # Get a page from the web; up to 10 redirects.
@@ -325,11 +340,28 @@ module Rdoc
           when MatchData
             self.lineno = object.pre_match.count("\n") + 1
             self.level = object['level']
-            self.text = object['text']
+            text_ = object['text']
+            xml = "<root>#{text_}</root>"
+            doc = REXML::Document.new(xml)
+            root = doc.root
+            elements = root.elements
+            case elements.size
+            when 0
+              self.text = root.text.to_s
+            when 1
+              self.text = elements.first.text
+            when 2
+              elements.each_with_index do |element, i|
+                next unless element.attributes['class'] == 'page-title-name'
+                self.text = element.text
+              end
+            else
+              raise RuntimeError.new("Cannot handle heading '#{text_}'")
+            end
             self.errors = []
             self.warnings = []
           when Hash
-            self.lineno = object[lineno]
+            self.lineno = object['lineno']
             self.level = object['level']
             self.text = object['text']
             self.errors = object['errors']
@@ -446,6 +478,15 @@ module Rdoc
           File.read(filepath)
         end
 
+        def evaluation_paths
+          filepaths = []
+          glob = File.join('**', '*' + EVALUATION_EXTENSION)
+          Dir.glob(glob, base: evaluation_dirpath).select do |path|
+            filepaths << path if File.extname(path) == EVALUATION_EXTENSION
+          end
+          filepaths
+        end
+
         def evaluation_filepath(path)
           filepath = path.sub(File.extname(path), EVALUATION_EXTENSION)
           File.join(evaluation_dirpath, filepath)
@@ -463,20 +504,9 @@ module Rdoc
         end
 
         def read_evaluation(path)
-          File.read(evaluation_filepath(path))
-        end
-
-        def report_filepath(path)
-          filename = File.basename(path, File.extname(path)) + report_EXTENSION
-          File.join(report_dirpath, filename)
-        end
-
-        def write_report(path)
-          File.write(report_filepath(path), report)
-        end
-
-        def read_report(path)
-          File.read(report_filepath(path))
+          filepath = evaluation_filepath(path)
+          puts "Reading #{filepath}"
+          File.read(filepath)
         end
 
       end
