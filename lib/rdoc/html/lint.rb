@@ -127,8 +127,7 @@ module Rdoc
             end
           end
           report = lines.join("\n")
-          puts report
-          # snapshot.write_report(path, report)
+          snapshot.write_report(report)
 
         end
 
@@ -507,6 +506,12 @@ module Rdoc
           filepath = evaluation_filepath(path)
           puts "Reading #{filepath}"
           File.read(filepath)
+        end
+
+        def write_report(report)
+          filepath = File.join(report_dirpath, 'Report.txt')
+          puts "Writing #{filepath}"
+          File.write(filepath, report)
         end
 
       end
