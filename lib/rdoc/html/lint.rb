@@ -109,7 +109,12 @@ module Rdoc
           end
           lines = []
           pages.each_pair do |path, page|
+            page.links.each do |link|
+              next if link.status == 'unknown'
+              p link unless link.status == 'ok'
+            end
             page.headings.each do |heading|
+              # Bug in RDoc itself causes this (on every page).
               heading.errors.shift if heading.errors.first == "Bad jump: 1 to 3."
               unless heading.errors.empty? && heading.warnings.empty?
                 lines << "Page #{path} heading:"
@@ -265,11 +270,11 @@ module Rdoc
             self.status = 'unknown'
             self.type = get_type
           when Hash
-            self.lineno = object[:lineno]
-            self.href = object[:href]
-            self.text = object[:text]
-            self.status = object[:status]
-            self.type = object[:type]
+            self.lineno = object['lineno']
+            self.href = object['href']
+            self.text = object['text']
+            self.status = object['status']
+            self.type = object['type']
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -319,7 +324,7 @@ module Rdoc
             href = link.href
             next unless href.start_with?('./')
             target_path = href.sub(%r[^\./], '')
-            link.status = paths.include?(target_path) ? 'ok' : target_path
+            link.status = paths.include?(target_path) ? 'ok' : 'not found'
           end
         end
 
