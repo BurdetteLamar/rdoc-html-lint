@@ -111,13 +111,21 @@ module Rdoc
           pages.each_pair do |path, page|
             page.links.each do |link|
               next if link.status == 'unknown'
-              p link unless link.status == 'ok'
+              next if link.status == 'ok'
+              lines << "Page #{path.sub('.json', '.html')} link:"
+              lineno, href, text, status, type =
+                link.to_h.values_at(:lineno, :href, :text, :status, :type)
+              lines << "  Lineno: #{lineno}"
+              lines << "  Href: #{href}"
+              lines << "  Text: #{text}"
+              lines << "  Status: #{status}"
+              lines << "  Type: #{type}"
             end
             page.headings.each do |heading|
               # Bug in RDoc itself causes this (on every page).
               heading.errors.shift if heading.errors.first == "Bad jump: 1 to 3."
               unless heading.errors.empty? && heading.warnings.empty?
-                lines << "Page #{path} heading:"
+                lines << "Page #{path.sub('.json', '.html')} heading:"
                 level, lineno, text = heading.to_h.values_at(:level, :lineno, :text)
                 lines << "  Level: #{level}"
                 lines << "  Lineno: #{lineno}"
