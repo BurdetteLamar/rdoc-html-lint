@@ -361,7 +361,7 @@ module Rdoc
             when 0
               self.text = root.text.to_s
             when 1
-              self.text = elements.first.text
+              self.text = element_texts(elements.first).join
             when 2
               elements.each_with_index do |element, i|
                 next unless element.attributes['class'] == 'page-title-name'
@@ -383,6 +383,19 @@ module Rdoc
           end
         end
 
+        def element_texts(element)
+          element.children.flat_map do |child|
+            case child
+            when REXML::Text
+              [child.value]
+            when REXML::Element
+              element_texts(child)
+            else
+              []
+            end
+          end
+        end
+
         def self.headings(html)
           matches = html.to_enum(:scan, PATTERN).map { Regexp.last_match }
           headings = []
@@ -395,6 +408,10 @@ module Rdoc
         def self.check_page(page)
           prev_level = 0
           page.headings.each_with_index do |heading, i|
+            text = heading.text
+            if text.empty?
+              heading.warnings << "Heading text is empty."
+            end
             level = heading.level.to_i
             if (i == 0) && (level != 1)
               heading.warnings << "First heading should be level 1, not #{level}."
