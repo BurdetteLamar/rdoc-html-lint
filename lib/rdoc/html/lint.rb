@@ -110,16 +110,19 @@ module Rdoc
           lines = []
           pages.each_pair do |path, page|
             page.links.each do |link|
-              next if link.status == 'unknown'
-              next if link.status == 'ok'
+              next if link.errors.empty? && link.warnings.empty?
               lines << "Page #{path.sub('.json', '.html')} link:"
-              lineno, href, text, status, type =
-                link.to_h.values_at(:lineno, :href, :text, :status, :type)
+              lineno, href, text, type, errors, warnings =
+                link.to_h.values_at(:lineno, :href, :text, :type, errors, :warnings)
               lines << "  Lineno: #{lineno}"
               lines << "  Href: #{href}"
               lines << "  Text: #{text}"
-              lines << "  Status: #{status}"
-              lines << "  Type: #{type}"
+              heading.errors.each do |error|
+                lines << "    Error: #{error}"
+              end
+              heading.warnings.each do |warning|
+                lines << "    Warning: #{warning}"
+              end
             end
             page.headings.each do |heading|
               # Bug in RDoc itself causes this (on every page).
@@ -267,7 +270,7 @@ module Rdoc
   </a>
 }imx
 
-        attr_accessor :lineno, :href, :text, :status, :type
+        attr_accessor :lineno, :href, :text, :type, :errors, :warnings
 
         def initialize(object)
           case object
@@ -275,14 +278,16 @@ module Rdoc
             self.lineno = object.pre_match.count("\n") + 1
             self.href = object['href']
             self.text = object['text']
-            self.status = 'unknown'
             self.type = get_type
+            self.errors = []
+            self.warnings = []
           when Hash
             self.lineno = object['lineno']
             self.href = object['href']
             self.text = object['text']
-            self.status = object['status']
             self.type = object['type']
+            self.errors = []
+            self.warnings = []
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -332,12 +337,14 @@ module Rdoc
             href = link.href
             next unless href.start_with?('./')
             target_path = href.sub(%r[^\./], '')
-            link.status = paths.include?(target_path) ? 'ok' : 'not found'
+            unless paths.include?(target_path)
+              link.errors << "Not found."
+            end
           end
         end
 
         def to_h
-          {lineno: lineno, href: href, text: text, status: status, type: type}
+          {lineno: lineno, href: href, text: text, type: type, errors: errors, warnings: warnings}
         end
       end
 
