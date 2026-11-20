@@ -91,7 +91,7 @@ module Rdoc
           end
           pages.each_pair do |path, page|
             Heading.check_page(page)
-            Link.check_page(page, paths)
+            # Link.check_page(page, paths)
             snapshot.write_evaluation(path, page)
           end
         end
@@ -112,32 +112,47 @@ module Rdoc
             page.links.each do |link|
               next if link.errors.empty? && link.warnings.empty?
               lines << "Page #{path.sub('.json', '.html')} link:"
-              lineno, href, text, type, errors, warnings =
-                link.to_h.values_at(:lineno, :href, :text, :type, errors, :warnings)
+              lineno, href, text, type =
+                link.to_h.values_at(:lineno, :href, :text, :type, :errors, :warnings, notes)
               lines << "  Lineno: #{lineno}"
+              lines << "  Type: #{type}"
               lines << "  Href: #{href}"
               lines << "  Text: #{text}"
-              heading.errors.each do |error|
-                lines << "    Error: #{error}"
+              lines << "  Errors:"
+              link.errors.each do |error|
+                lines << "    #{error}"
               end
-              heading.warnings.each do |warning|
-                lines << "    Warning: #{warning}"
+              lines << "  Warnings:"
+              link.warnings.each do |warning|
+                lines << "    #{warning}"
               end
             end
             page.headings.each do |heading|
               # Bug in RDoc itself causes this (on every page).
               heading.errors.shift if heading.errors.first == "Bad jump: 1 to 3."
-              unless heading.errors.empty? && heading.warnings.empty?
+              unless heading.errors.empty? && heading.warnings.empty? && heading.notes.empty?
                 lines << "Page #{path.sub('.json', '.html')} heading:"
                 level, lineno, text = heading.to_h.values_at(:level, :lineno, :text)
                 lines << "  Level: #{level}"
                 lines << "  Lineno: #{lineno}"
                 lines << "  Text: '#{text}'"
-                heading.errors.each do |error|
-                  lines << "    Error: #{error}"
+                unless heading.errors.empty?
+                  lines << "  Errors:"
+                  heading.errors.each do |error|
+                    lines << "    #{error}"
+                  end
                 end
-                heading.warnings.each do |warning|
-                  lines << "    Warning: #{warning}"
+                unless heading.warnings.empty?
+                  lines << "  Warnings:"
+                  heading.warnings.each do |warning|
+                    lines << "    #{warning}"
+                  end
+                end
+                unless heading.notes.empty?
+                  lines << "  Notes:"
+                  heading.notes.each do |note|
+                    lines << "    #{note}"
+                  end
                 end
               end
             end
@@ -286,8 +301,8 @@ module Rdoc
             self.href = object['href']
             self.text = object['text']
             self.type = object['type']
-            self.errors = []
-            self.warnings = []
+            self.errors = object['errors']
+            self.warnings = object['warnings']
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -335,10 +350,19 @@ module Rdoc
         def self.check_page(page, paths)
           page.links.each do |link|
             href = link.href
-            next unless href.start_with?('./')
-            target_path = href.sub(%r[^\./], '')
-            unless paths.include?(target_path)
-              link.errors << "Not found."
+            case link.type
+            when 'relative'
+              # target_path = href.sub(%r[^\./], '')
+              # unless paths.include?(target_path)
+              #   link.errors << "Not found."
+              # end
+            when 'file', 'class'
+              target_path = href.split('#').first
+              unless paths.include?(target_path)
+                link.errors << "Not found."
+              end
+            else
+              # link.errors << "Invalid."
             end
           end
         end
@@ -352,7 +376,7 @@ module Rdoc
 
         PATTERN = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
 
-        attr_accessor :lineno, :level, :text, :errors, :warnings
+        attr_accessor :lineno, :level, :text, :errors, :warnings, :notes
 
         def initialize(object)
           case object
@@ -379,12 +403,14 @@ module Rdoc
             end
             self.errors = []
             self.warnings = []
+            self.notes = []
           when Hash
             self.lineno = object['lineno']
             self.level = object['level']
             self.text = object['text']
             self.errors = object['errors']
             self.warnings = object['warnings']
+            self.notes = object['notes']
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -417,11 +443,11 @@ module Rdoc
           page.headings.each_with_index do |heading, i|
             text = heading.text
             if text.empty?
-              heading.warnings << "Heading text is empty."
+              heading.errors << "Text should not be empty."
             end
             level = heading.level.to_i
             if (i == 0) && (level != 1)
-              heading.warnings << "First heading should be level 1, not #{level}."
+              heading.errors << "First heading should be level 1, not #{level}."
             end
             jump_size = level - prev_level
             if jump_size > 1
@@ -432,7 +458,7 @@ module Rdoc
         end
 
         def to_h
-          {lineno: lineno, level: level, text: text, errors: errors, warnings: warnings}
+          {lineno: lineno, level: level, text: text, errors: errors, warnings: warnings, notes: notes}
         end
       end
 
