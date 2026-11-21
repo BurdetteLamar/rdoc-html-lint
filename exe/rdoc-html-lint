@@ -33,7 +33,4 @@ OptionParser.new do |parser|
 
 end.parse!
 
-checker = Rdoc::Html::Lint::Checker.new
-checker.download if options[:download]
-checker.evaluate if options[:evaluate]
-checker.report if options[:report]
+checker = Rdoc::Html::Lint::Checker.new(options)

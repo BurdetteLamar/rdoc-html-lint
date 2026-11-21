@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'cgi'
 require 'fileutils'
 require 'json'
 require 'net/http'
@@ -27,6 +26,9 @@ module Rdoc
 
         def initialize(options= {})
           self.options = options
+          download if options[:download]
+          evaluate if options[:evaluate]
+          report if options[:report]
         end
 
         # Download and store each HTML page from the website.

@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.email = ["burdettelamar@yahoo.com"]
 
   spec.summary = "Command-line utility for linting Ruby documentation."
-  spec.description = "Checks links on pages in #{Rdoc::Html::Lint::BASE_URL}"
+  spec.description = "Checks pages in official Ruby documentation."
   spec.homepage = "TODO: Put your gem's website or public repo URL here."
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
