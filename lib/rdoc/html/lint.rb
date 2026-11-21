@@ -92,8 +92,9 @@ module Rdoc
             pages[path] = page
           end
           pages.each_pair do |path, page|
-            Heading.check_page(page)
+            # Heading.check_page(page)
             # Link.check_page(page, paths)
+            Id.check_page(page)
             snapshot.write_evaluation(path, page)
           end
         end
@@ -113,13 +114,13 @@ module Rdoc
           pages.each_pair do |path, page|
             page.links.each do |link|
               next if link.errors.empty? && link.warnings.empty?
-              lines << "Page #{path.sub('.json', '.html')} link:"
+              lines << "Page '#{path.sub('.json', '.html')}' link:"
               lineno, href, text, type =
                 link.to_h.values_at(:lineno, :href, :text, :type, :errors, :warnings, notes)
               lines << "  Lineno: #{lineno}"
               lines << "  Type: #{type}"
-              lines << "  Href: #{href}"
-              lines << "  Text: #{text}"
+              lines << "  Href: '#{href}'"
+              lines << "  Text: '#{text}'"
               lines << "  Errors:"
               link.errors.each do |error|
                 lines << "    #{error}"
@@ -129,11 +130,28 @@ module Rdoc
                 lines << "    #{warning}"
               end
             end
+            page.ids.each do |id|
+              next if id.errors.empty? && id.warnings.empty?
+              lines << "Page '#{path.sub('.json', '.html')}' id:"
+              lineno, name, value =
+                id.to_h.values_at(:lineno, :name, :value, :errors, :warnings, :notes)
+              lines << "  Lineno: #{lineno}"
+              lines << "  Name: '#{name}'"
+              lines << "  Value: '#{value}'"
+              lines << "  Errors:"
+              id.errors.each do |error|
+                lines << "    #{error}"
+              end
+              lines << "  Warnings:"
+              id.warnings.each do |warning|
+                lines << "    #{warning}"
+              end
+            end
             page.headings.each do |heading|
               # Bug in RDoc itself causes this (on every page).
               heading.errors.shift if heading.errors.first == "Bad jump: 1 to 3."
               unless heading.errors.empty? && heading.warnings.empty? && heading.notes.empty?
-                lines << "Page #{path.sub('.json', '.html')} heading:"
+                lines << "Page '#{path.sub('.json', '.html')}' heading:"
                 level, lineno, text = heading.to_h.values_at(:level, :lineno, :text)
                 lines << "  Level: #{level}"
                 lines << "  Lineno: #{lineno}"
@@ -215,9 +233,9 @@ module Rdoc
             object['links'].each do |link|
               self.links << Link.new(link)
             end
-            self.ids = {}
-            object['ids'].each_pair do |id, data|
-              self.ids[id] = Id.new(data)
+            self.ids = []
+            object['ids'].each do |id|
+              self.ids << Id.new(id)
             end
           else
             raise ArgumentError.new('Argument must be a String or a Hash')
@@ -229,7 +247,7 @@ module Rdoc
             path: path,
             links: links.map(&:to_h),
             headings: headings.map(&:to_h),
-            ids: ids.transform_values(&:to_h)
+            ids: ids.map(&:to_h)
           }
         end
 
@@ -242,36 +260,66 @@ module Rdoc
 
       class Id
 
-        PATTERN = /\b(?<name>id|name)\s*=\s*(?:"(?<value>[^"]*)"|'(?<value>[^']*)'|(?<value>[^\s>]+))/i
+        PATTERN = /(?<name>\bid)="(?<value>[^"]*)"/
 
-        attr_accessor :name, :value
+        attr_accessor :lineno, :name, :value, :errors, :warnings, :notes
 
         def initialize(object)
           case object
           when MatchData
+            self.lineno = object.pre_match.count("\n") + 1
             self.name = object[:name]
             self.value = object[:value]
+            self.errors = []
+            self.warnings = []
+            self.notes = []
           when Hash
-            self.name = object[:name]
-            self.value = object[:value]
+            self.lineno = object['lineno']
+            self.name = object['name']
+            self.value = object['value']
+            self.errors = object['errors']
+            self.warnings = object['warnings']
+            self.notes = object['notes']
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
         end
 
         def self.ids(html)
-          ids = {}
+          ids = []
           matches = []
           html.to_enum(:scan, PATTERN).each { matches << Regexp.last_match }
           matches.each do |match|
             id = Id.new(match)
-            ids[id.value] ||= id
+            ids << id
           end
           ids
         end
 
+        def self.check_page(page)
+          ids = page.ids
+          ids.each do |id|
+            if id.value.match(/\s/)
+              id.errors << "Value contains whitespace."
+            end
+            if id.value.empty?
+              id.errors << "Value is empty."
+            end
+          end
+          values = ids.map {|id| id.value }
+          values.tally.filter_map do |value, count|
+            if count > 1
+              duplicate_ids = ids.select {|id| id.value == value }
+              duplicate_ids.each do |id|
+                linenos = duplicate_ids.map {|id| id.lineno }
+                id.errors << "Value '#{value}' appears #{count} times at linenos #{linenos}."
+              end
+            end
+          end
+        end
+
         def to_h
-          {name: name, value: value}
+          {lineno: lineno, name: name, value: value, errors: errors, warnings: warnings, notes: notes}
         end
 
       end
