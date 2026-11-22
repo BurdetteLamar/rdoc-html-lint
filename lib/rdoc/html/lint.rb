@@ -194,17 +194,21 @@ module Rdoc
           http.open_timeout = 30
           http.read_timeout = 60
           # Get the page.
-          request = Net::HTTP::Get.new(uri.request_uri)
-          request['User-Agent'] = 'Ruby documentation crawler'
-          response = http.request(request)
-          # Check for redirection.
-          if REDIRECT_CODES.include?(response.code)
-            location = response['location']
-            raise "redirect without Location header" unless location
+          begin
+            request = Net::HTTP::Get.new(uri.request_uri)
+            request['User-Agent'] = 'Ruby documentation crawler'
+            response = http.request(request)
+            # Check for redirection.
+            if REDIRECT_CODES.include?(response.code)
+              location = response['location']
+              raise "redirect without Location header" unless location
 
-            target = URI.join(url, location).to_s
-            # Get using the redirection.
-            return [response, target, self.get(target, redirect_limit - 1)[2]]
+              target = URI.join(url, location).to_s
+              # Get using the redirection.
+              return [response, target, self.get(target, redirect_limit - 1)[2]]
+            end
+          rescue
+            return [nil, nil, nil]
           end
           [response, url, nil]
         end
@@ -397,7 +401,10 @@ module Rdoc
           links
         end
 
+        CODE_FOR_OFFSITE_PATH = {}
+
         def self.check_page(page, paths)
+          return if page.path.match(/^(LEGAL|NEWS)/)
           page.links.each do |link|
             case link.type
             when 'class', 'file', 'relative'
@@ -408,6 +415,17 @@ module Rdoc
                 link.errors << "Not found: '#{target_path}'."
               end
             when 'offsite'
+              url = link.href.split('#').first
+              next unless url.start_with?('http')
+              unless CODE_FOR_OFFSITE_PATH.include?(url)
+                response, _, _ = Checker.get(url)
+                code = response.nil? ? '404' : response.code
+                CODE_FOR_OFFSITE_PATH[url] = code
+              end
+              code = CODE_FOR_OFFSITE_PATH[url]
+              unless Checker::FOUND_CODES.include?(code)
+                link.errors << "Not found: '#{url}' (#{code})."
+              end
             when 'fragment'
             when 'invalid'
               link.errors << "Invalid href: '#{link.href}'."
