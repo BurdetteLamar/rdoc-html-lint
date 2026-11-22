@@ -88,13 +88,13 @@ module Rdoc
           paths = snapshot.html_paths
           paths.each do |path|
             html = snapshot.read_html(path)
-            page = Page.new(html)
+            page = Page.new(html, path)
             pages[path] = page
           end
           pages.each_pair do |path, page|
             # Heading.check_page(page)
-            # Link.check_page(page, paths)
-            Id.check_page(page)
+            Link.check_page(page, paths)
+            # Id.check_page(page)
             snapshot.write_evaluation(path, page)
           end
         end
@@ -116,7 +116,7 @@ module Rdoc
               next if link.errors.empty? && link.warnings.empty?
               lines << "Page '#{path.sub('.json', '.html')}' link:"
               lineno, href, text, type =
-                link.to_h.values_at(:lineno, :href, :text, :type, :errors, :warnings, notes)
+                link.to_h.values_at(:lineno, :href, :text, :type, :errors, :warnings, :notes)
               lines << "  Lineno: #{lineno}"
               lines << "  Type: #{type}"
               lines << "  Href: '#{href}'"
@@ -335,7 +335,7 @@ module Rdoc
   </a>
 }imx
 
-        attr_accessor :lineno, :href, :text, :type, :errors, :warnings
+        attr_accessor :lineno, :href, :text, :type, :errors, :warnings, :notes
 
         def initialize(object)
           case object
@@ -399,20 +399,21 @@ module Rdoc
 
         def self.check_page(page, paths)
           page.links.each do |link|
-            href = link.href
             case link.type
-            when 'relative'
-              # target_path = href.sub(%r[^\./], '')
-              # unless paths.include?(target_path)
-              #   link.errors << "Not found."
-              # end
-            when 'file', 'class'
-              target_path = href.split('#').first
+            when 'class', 'file', 'relative'
+              link_path = link.href.split('#').first
+              page_path_dirname = File.dirname(page.path)
+              target_path = Pathname(page_path_dirname).join(link_path).cleanpath.to_s
               unless paths.include?(target_path)
-                link.errors << "Not found."
+                link.errors << "Not found: '#{target_path}'."
               end
+            when 'offsite'
+            when 'fragment'
+            when 'invalid'
+              link.errors << "Invalid href: '#{link.href}'."
             else
-              # link.errors << "Invalid."
+              message = "Unknown link type: #{link.type}."
+              raise RuntimeError.new(message)
             end
           end
         end
