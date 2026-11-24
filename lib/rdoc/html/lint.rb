@@ -53,7 +53,24 @@ module Rdoc
               next unless content_type.include?('text/html')
               html = response.body
               path = url.sub(BASE_URL, '')
-              unless path.empty? # Don't write the home page.
+              if path.empty?
+                # This is the home page; get js and css files.
+                page = Page.new(html, path)
+                js_paths = page.js_paths
+                js_paths.each do |js_path|
+                  path = File.join(BASE_URL, js_path)
+                  response, _, _ = Checker.get(path)
+                  js = response.body
+                  snapshot.write_js(path, js)
+                end
+                css_paths = page.css_paths
+                css_paths.each do |css_path|
+                  path = File.join(BASE_URL, css_path)
+                  response, _, _ = Checker.get(path)
+                  css = response.body
+                  snapshot.write_css(path, css)
+                end
+              else
                 snapshot.write_html(path, html)
               end
 
@@ -246,6 +263,38 @@ module Rdoc
           end
         end
 
+        def js_paths
+          lines = html.lines.select do |line|
+            line.match(%r[/js/])
+          end
+          paths = []
+          lines.each do |line|
+            path = line.sub(/src=/, '')
+            path = path.gsub('"', '')
+            path = path.strip
+            path = path.split('?').first
+            path = path.sub('./', '')
+            paths << path
+          end
+          paths
+        end
+
+        def css_paths
+          lines = html.lines.select do |line|
+            line.match(%r[/css/])
+          end
+          paths = []
+          lines.each do |line|
+            path = line.sub(/href=/, '')
+            path = path.gsub('"', '')
+            path = path.strip
+            path = path.split('?').first
+            path = path.sub('./', '')
+            paths << path
+          end
+          paths
+        end
+
         def to_h
           {
             path: path,
@@ -254,7 +303,6 @@ module Rdoc
             ids: ids.map(&:to_h)
           }
         end
-
 
         def to_json
           JSON.pretty_generate(to_h)
@@ -577,6 +625,24 @@ module Rdoc
             FileUtils.mkdir_p(self.evaluation_dirpath)
             FileUtils.mkdir_p(self.report_dirpath)
           end
+        end
+
+        def write_js(path, js)
+          js_path = path.sub(Checker::BASE_URL, '').sub('js/', '')
+          js_dirpath = File.join(self.html_dirpath, 'js')
+          FileUtils.mkdir_p(js_dirpath)
+          filepath = File.join(js_dirpath, js_path)
+          puts "Writing #{filepath}"
+          File.write(filepath, js)
+        end
+
+        def write_css(path, css)
+          css_path = path.sub(Checker::BASE_URL, '').sub('css/', '')
+          css_dirpath = File.join(self.html_dirpath, 'css')
+          FileUtils.mkdir_p(css_dirpath)
+          filepath = File.join(css_dirpath, css_path)
+          puts "Writing #{filepath}"
+          File.write(filepath, css)
         end
 
         def html_paths
