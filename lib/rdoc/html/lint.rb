@@ -136,7 +136,7 @@ module Rdoc
               link_lines = []
               link_lines << "  Link:"
               lineno, href, text, type =
-                link.to_h.values_at(:lineno, :href, :text, :type, :errors, :warnings, :notes)
+                link.to_h.values_at(:lineno, :href, :text, :type, :errors, :warnings)
               link_lines << "    Lineno: #{lineno}"
               link_lines << "    Type: #{type}"
               link_lines << "    Href: '#{href}'"
@@ -156,7 +156,7 @@ module Rdoc
               id_lines = []
               id_lines << "  Id:"
               lineno, name, value =
-                id.to_h.values_at(:lineno, :name, :value, :errors, :warnings, :notes)
+                id.to_h.values_at(:lineno, :name, :value, :errors, :warnings)
               id_lines << "    Lineno: #{lineno}"
               id_lines << "    Name: '#{name}'"
               id_lines << "    Value: '#{value}'"
@@ -318,7 +318,7 @@ module Rdoc
 
         PATTERN = /(?<name>\bid)="(?<value>[^"]*)"/
 
-        attr_accessor :lineno, :name, :value, :errors, :warnings, :notes
+        attr_accessor :lineno, :name, :value, :errors, :warnings
 
         def initialize(object)
           case object
@@ -328,14 +328,12 @@ module Rdoc
             self.value = object[:value]
             self.errors = []
             self.warnings = []
-            self.notes = []
           when Hash
             self.lineno = object['lineno']
             self.name = object['name']
             self.value = object['value']
             self.errors = object['errors']
             self.warnings = object['warnings']
-            self.notes = object['notes']
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -375,7 +373,7 @@ module Rdoc
         end
 
         def to_h
-          {lineno: lineno, name: name, value: value, errors: errors, warnings: warnings, notes: notes}
+          {lineno: lineno, name: name, value: value, errors: errors, warnings: warnings}
         end
 
       end
@@ -391,7 +389,7 @@ module Rdoc
   </a>
 }imx
 
-        attr_accessor :lineno, :href, :text, :type, :errors, :warnings, :notes
+        attr_accessor :lineno, :href, :text, :type, :errors, :warnings
 
         def initialize(object)
           case object
@@ -497,7 +495,7 @@ module Rdoc
 
         PATTERN = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
 
-        attr_accessor :lineno, :level, :text, :errors, :warnings, :notes
+        attr_accessor :lineno, :level, :text, :errors, :warnings
 
         def initialize(object)
           case object
@@ -524,14 +522,12 @@ module Rdoc
             end
             self.errors = []
             self.warnings = []
-            self.notes = []
           when Hash
             self.lineno = object['lineno']
             self.level = object['level']
             self.text = object['text']
             self.errors = object['errors']
             self.warnings = object['warnings']
-            self.notes = object['notes']
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -579,7 +575,7 @@ module Rdoc
         end
 
         def to_h
-          {lineno: lineno, level: level, text: text, errors: errors, warnings: warnings, notes: notes}
+          {lineno: lineno, level: level, text: text, errors: errors, warnings: warnings}
         end
       end
 
