@@ -110,9 +110,9 @@ module Rdoc
             pages[path] = page
           end
           pages.each_pair do |path, page|
-            # Heading.check_page(page)
+            Heading.check_page(page)
             Link.check_page(page, paths)
-            # Id.check_page(page)
+            Id.check_page(page)
             snapshot.write_evaluation(path, page)
           end
         end
@@ -128,76 +128,79 @@ module Rdoc
             page = Page.new(hash)
             pages[path] = page
           end
-          lines = []
-          pages.each_pair do |path, page|
+          report_lines = []
+          pages.each_pair do |_, page|
+            page_lines = []
             page.links.each do |link|
               next if link.errors.empty? && link.warnings.empty?
-              lines << "Page '#{path.sub('.json', '.html')}' link:"
+              link_lines = []
+              link_lines << "  Link:"
               lineno, href, text, type =
                 link.to_h.values_at(:lineno, :href, :text, :type, :errors, :warnings, :notes)
-              lines << "  Lineno: #{lineno}"
-              lines << "  Type: #{type}"
-              lines << "  Href: '#{href}'"
-              lines << "  Text: '#{text}'"
-              lines << "  Errors:"
+              link_lines << "    Lineno: #{lineno}"
+              link_lines << "    Type: #{type}"
+              link_lines << "    Href: '#{href}'"
+              link_lines << "    Text: '#{text}'"
+              link_lines << "    Errors:" unless link.errors.empty?
               link.errors.each do |error|
-                lines << "    #{error}"
+                link_lines << "      #{error}"
               end
-              lines << "  Warnings:"
+              link_lines << "    Warnings:" unless link.warnings.empty?
               link.warnings.each do |warning|
-                lines << "    #{warning}"
+                link_lines <<   "    #{warning}"
               end
+              page_lines.concat(link_lines)
             end
             page.ids.each do |id|
               next if id.errors.empty? && id.warnings.empty?
-              lines << "Page '#{path.sub('.json', '.html')}' id:"
+              id_lines = []
+              id_lines << "  Id:"
               lineno, name, value =
                 id.to_h.values_at(:lineno, :name, :value, :errors, :warnings, :notes)
-              lines << "  Lineno: #{lineno}"
-              lines << "  Name: '#{name}'"
-              lines << "  Value: '#{value}'"
-              lines << "  Errors:"
+              id_lines << "    Lineno: #{lineno}"
+              id_lines << "    Name: '#{name}'"
+              id_lines << "    Value: '#{value}'"
+              id_lines << "    Errors:" unless id.errors.empty?
               id.errors.each do |error|
-                lines << "    #{error}"
+                id_lines << "      #{error}"
               end
-              lines << "  Warnings:"
+              id_lines << "  Warnings:" unless id.warnings.empty?
               id.warnings.each do |warning|
-                lines << "    #{warning}"
+                id_lines << "      #{warning}"
               end
+              page_lines.concat(id_lines)
             end
             page.headings.each do |heading|
               # Bug in RDoc itself causes this (on every page).
               heading.errors.shift if heading.errors.first == "Bad jump: 1 to 3."
-              unless heading.errors.empty? && heading.warnings.empty? && heading.notes.empty?
-                lines << "Page '#{path.sub('.json', '.html')}' heading:"
+              unless heading.errors.empty? && heading.warnings.empty?
+                heading_lines = []
+                heading_lines << "  Heading:"
                 level, lineno, text = heading.to_h.values_at(:level, :lineno, :text)
-                lines << "  Level: #{level}"
-                lines << "  Lineno: #{lineno}"
-                lines << "  Text: '#{text}'"
+                heading_lines << "    Level: #{level}"
+                heading_lines << "    Lineno: #{lineno}"
+                heading_lines << "    Text: '#{text}'"
                 unless heading.errors.empty?
-                  lines << "  Errors:"
+                  heading_lines << "    Errors:"
                   heading.errors.each do |error|
-                    lines << "    #{error}"
+                    heading_lines << "      #{error}"
                   end
                 end
                 unless heading.warnings.empty?
-                  lines << "  Warnings:"
+                  heading_lines << "    Warnings:"
                   heading.warnings.each do |warning|
-                    lines << "    #{warning}"
+                    heading_lines << "      #{warning}"
                   end
                 end
-                unless heading.notes.empty?
-                  lines << "  Notes:"
-                  heading.notes.each do |note|
-                    lines << "    #{note}"
-                  end
-                end
+                page_lines.concat(heading_lines)
               end
             end
+            next if page_lines.empty?
+            page_lines.unshift("Page #{page.path}")
+            report_lines.concat(page_lines)
           end
-          report = lines.join("\n")
+          report = report_lines.join("\n")
           snapshot.write_report(report)
-
         end
 
         # Get a page from the web; up to 10 redirects.
