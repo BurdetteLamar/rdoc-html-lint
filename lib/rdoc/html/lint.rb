@@ -94,6 +94,7 @@ module Rdoc
               fail "  #{e.class}: #{e.message}"
             end
           end
+          snapshot.write_download_summary(page_count)
           puts "Wrote #{page_count} files to #{snapshot.html_dirpath}"
 
         end
@@ -625,6 +626,11 @@ module Rdoc
             FileUtils.mkdir_p(self.evaluation_dirpath)
             FileUtils.mkdir_p(self.report_dirpath)
           end
+        end
+
+        def write_download_summary(page_count)
+          summary_filepath = File.join(self.html_dirpath, 'summary.txt')
+          File.write(summary_filepath, "Downloaded #{page_count} pages.")
         end
 
         def write_js(path, js)
