@@ -21,6 +21,9 @@ module Rdoc
         OK_CODE = ['200']
         # Both.
         FOUND_CODES = OK_CODE + REDIRECT_CODES
+        # To avoid multiple fetches.
+        CODE_FOR_OFFSITE_PATH = {}
+
 
         attr_accessor :options
 
@@ -115,6 +118,7 @@ module Rdoc
             Id.check_page(page)
             snapshot.write_evaluation(path, page)
           end
+          snapshot.write_offsite_urls(CODE_FOR_OFFSITE_PATH)
         end
 
         # Create a report.
@@ -451,8 +455,6 @@ module Rdoc
           links
         end
 
-        CODE_FOR_OFFSITE_PATH = {}
-
         def self.check_page(page, paths)
           return if page.path.match(/^(LEGAL|NEWS)/)
           page.links.each do |link|
@@ -467,12 +469,12 @@ module Rdoc
             when 'offsite'
               url = link.href.split('#').first
               next unless url.start_with?('http')
-              unless CODE_FOR_OFFSITE_PATH.include?(url)
+              unless Checker::CODE_FOR_OFFSITE_PATH.include?(url)
                 response, _, _ = Checker.get(url)
                 code = response.nil? ? '404' : response.code
-                CODE_FOR_OFFSITE_PATH[url] = code
+                Checker::CODE_FOR_OFFSITE_PATH[url] = code
               end
-              code = CODE_FOR_OFFSITE_PATH[url]
+              code = Checker::CODE_FOR_OFFSITE_PATH[url]
               unless Checker::FOUND_CODES.include?(code)
                 link.errors << "Not found: '#{url}' (#{code})."
               end
@@ -692,6 +694,18 @@ module Rdoc
         def evaluation_filepath(path)
           filepath = path.sub(File.extname(path), EVALUATION_EXTENSION)
           File.join(evaluation_dirpath, filepath)
+        end
+
+        def write_offsite_urls(hash)
+          dirpath = self.evaluation_dirpath
+          filepath = File.join(dirpath, 'offsite.txt')
+          puts "Writing #{filepath}"
+          File.open(filepath, 'w') do |file|
+            hash.keys.sort.each do |url|
+              code = hash[url]
+              file.write("#{code} #{url}\n")
+            end
+          end
         end
 
         def write_evaluation(path, page)
