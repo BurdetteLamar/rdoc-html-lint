@@ -136,11 +136,16 @@ module Rdoc
           pages.each_pair do |_, page|
             page_lines = []
             page.links.each do |link|
-              next if link.errors.empty? && link.warnings.empty?
+              next if link.errors.empty?
+              table = link.to_table
+              require 'rexml/formatters/pretty'
+              s = +''
+              REXML::Formatters::Pretty.new(2).write(table, s)
+              puts s
               link_lines = []
               link_lines << "  Link:"
               lineno, href, text, type =
-                link.to_h.values_at(:lineno, :href, :text, :type, :errors, :warnings)
+                link.to_h.values_at(:lineno, :href, :text, :type, :errors)
               link_lines << "    Lineno: #{lineno}"
               link_lines << "    Type: #{type}"
               link_lines << "    Href: '#{href}'"
@@ -149,18 +154,14 @@ module Rdoc
               link.errors.each do |error|
                 link_lines << "      #{error}"
               end
-              link_lines << "    Warnings:" unless link.warnings.empty?
-              link.warnings.each do |warning|
-                link_lines <<   "    #{warning}"
-              end
               page_lines.concat(link_lines)
             end
             page.ids.each do |id|
-              next if id.errors.empty? && id.warnings.empty?
+              next if id.errors.empty?
               id_lines = []
               id_lines << "  Id:"
               lineno, name, value =
-                id.to_h.values_at(:lineno, :name, :value, :errors, :warnings)
+                id.to_h.values_at(:lineno, :name, :value, :errors)
               id_lines << "    Lineno: #{lineno}"
               id_lines << "    Name: '#{name}'"
               id_lines << "    Value: '#{value}'"
@@ -168,16 +169,12 @@ module Rdoc
               id.errors.each do |error|
                 id_lines << "      #{error}"
               end
-              id_lines << "  Warnings:" unless id.warnings.empty?
-              id.warnings.each do |warning|
-                id_lines << "      #{warning}"
-              end
               page_lines.concat(id_lines)
             end
             page.headings.each do |heading|
               # Bug in RDoc itself causes this (on every page).
               heading.errors.shift if heading.errors.first == "Bad jump: 1 to 3."
-              unless heading.errors.empty? && heading.warnings.empty?
+              unless heading.errors.empty?
                 heading_lines = []
                 heading_lines << "  Heading:"
                 level, lineno, text = heading.to_h.values_at(:level, :lineno, :text)
@@ -188,12 +185,6 @@ module Rdoc
                   heading_lines << "    Errors:"
                   heading.errors.each do |error|
                     heading_lines << "      #{error}"
-                  end
-                end
-                unless heading.warnings.empty?
-                  heading_lines << "    Warnings:"
-                  heading.warnings.each do |warning|
-                    heading_lines << "      #{warning}"
                   end
                 end
                 page_lines.concat(heading_lines)
@@ -322,7 +313,7 @@ module Rdoc
 
         PATTERN = /(?<name>\bid)="(?<value>[^"]*)"/
 
-        attr_accessor :lineno, :name, :value, :errors, :warnings
+        attr_accessor :lineno, :name, :value, :errors
 
         def initialize(object)
           case object
@@ -331,13 +322,11 @@ module Rdoc
             self.name = object[:name]
             self.value = object[:value]
             self.errors = []
-            self.warnings = []
           when Hash
             self.lineno = object['lineno']
             self.name = object['name']
             self.value = object['value']
             self.errors = object['errors']
-            self.warnings = object['warnings']
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -376,8 +365,17 @@ module Rdoc
           end
         end
 
+        def to_table
+          data = {}
+          classes = %w[number data data string]
+          to_h.each_pair do |key, value|
+            data[key] = [value, classes]
+          end
+          Html.table2('Id', data)
+        end
+
         def to_h
-          {lineno: lineno, name: name, value: value, errors: errors, warnings: warnings}
+          {lineno: lineno, name: name, value: value, errors: errors}
         end
 
       end
@@ -393,7 +391,15 @@ module Rdoc
   </a>
 }imx
 
-        attr_accessor :lineno, :href, :text, :type, :errors, :warnings
+        attr_accessor :lineno, :href, :text, :type, :errors
+
+        CSS_CLASSES = {
+          lineno: %w[number],
+          href: %w[string data],
+          text: %w[string data],
+          type: %w[string],
+          errors: %w[string],
+        }
 
         def initialize(object)
           case object
@@ -403,14 +409,12 @@ module Rdoc
             self.text = object['text']
             self.type = get_type
             self.errors = []
-            self.warnings = []
           when Hash
             self.lineno = object['lineno']
             self.href = object['href']
             self.text = object['text']
             self.type = object['type']
             self.errors = object['errors']
-            self.warnings = object['warnings']
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -488,16 +492,32 @@ module Rdoc
           end
         end
 
-        def to_h
-          {lineno: lineno, href: href, text: text, type: type, errors: errors, warnings: warnings}
+        def to_table
+          data = {}
+          to_h.each_pair do |name, value|
+            data[name] = [value, CSS_CLASSES[name]]
+          end
+          Html.table2('Link', data)
         end
+
+        def to_h
+          {lineno: lineno, href: href, text: text, type: type, errors: errors}
+        end
+
       end
 
       class Heading
 
         PATTERN = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
 
-        attr_accessor :lineno, :level, :text, :errors, :warnings
+        CSS_CLASSES = {
+          lineno: %w[number],
+          level: %w[number],
+          text: %w[string data],
+          errors: %w[string],
+        }
+
+        attr_accessor :lineno, :level, :text, :errors
 
         def initialize(object)
           case object
@@ -523,13 +543,11 @@ module Rdoc
               raise RuntimeError.new("Cannot handle heading '#{text_}'")
             end
             self.errors = []
-            self.warnings = []
           when Hash
             self.lineno = object['lineno']
             self.level = object['level']
             self.text = object['text']
             self.errors = object['errors']
-            self.warnings = object['warnings']
           else
             raise ArgumentError.new('Argument must be a MatchData or a Hash')
           end
@@ -576,9 +594,18 @@ module Rdoc
           end
         end
 
-        def to_h
-          {lineno: lineno, level: level, text: text, errors: errors, warnings: warnings}
+        def to_table
+          data = {}
+          to_h.each_pair do |key, value|
+            data[key] = [value, CSS_CLASSES[key]]
+          end
+          Html.table2('Heading', data)
         end
+
+        def to_h
+          {lineno: lineno, level: level, text: text, errors: errors}
+        end
+
       end
 
       # Class to handle snapshots in an orderly manner.
@@ -729,6 +756,60 @@ module Rdoc
           filepath = File.join(report_dirpath, 'Report.txt')
           puts "Writing #{filepath}"
           File.write(filepath, report)
+        end
+
+      end
+
+      # Module to create HTML elements.
+      module Html
+
+        def self.html
+          html = self.element('html')
+          head = html.add_element('head')
+          body = html.add_element('body')
+          [html, head, body]
+        end
+
+        def self.element(tag)
+          REXML::Element.new(tag)
+        end
+
+        def self.heading(level, text)
+          heading = self.ele("h#{level}")
+          heading.text = text
+          heading
+        end
+
+        def self.ul(items, classes_for_value)
+          ul = self.element('ul')
+          items.each do |item|
+            li = ul.add_element('li')
+            li.text = item.to_s
+            li.attributes['class'] = classes_for_value.join(' ')
+          end
+          ul
+        end
+
+        def self.table2(title, data)
+          table = self.element('table')
+          tr = table.add_element('tr')
+          th = tr.add_element('th', {'colspan' => 2})
+          th.text = title
+          data.each_pair do |label, classes_for_value|
+            tr = table.add_element('tr')
+            th = tr.add_element('th')
+            th.text = label
+            th.attributes['class'] = 'label'
+            td = tr.add_element('td')
+            name, classes = classes_for_value
+            if name.is_a?(Array)
+              td.add_element(self.ul(name, classes))
+            else
+              td.text = name
+              td.attributes['class'] = classes.join(' ')
+            end
+          end
+          table
         end
 
       end
