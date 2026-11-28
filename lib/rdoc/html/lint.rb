@@ -4,6 +4,7 @@ require 'fileutils'
 require 'json'
 require 'net/http'
 require 'rexml/document'
+require 'rexml/formatters/pretty'
 require 'set'
 require 'uri'
 require_relative "lint/version"
@@ -132,16 +133,39 @@ module Rdoc
             page = Page.new(hash)
             pages[path] = page
           end
+          html, head, body = Html.html
+          style = head.add_element('style')
+          css = <<EOT
+                  *          { font-family: sans-serif }
+.data {
+    font-family: monospace;
+}
+
+.data::before {
+    content: "\0022";
+}
+
+.data::after {
+    content: "\0022";
+}
+.text      { text-align:  left }
+.number    { text-align:  right }
+.header    { text-align:  center }
+.string    { text-align:  left }
+.good      { color: rgb(  0,  97,   0); background-color: rgb(198, 239, 206) } /* Green */
+.iffy      { color: rgb(156, 101,   0); background-color: rgb(255, 235, 156) } /* Yellow */
+.bad       { color: rgb(156,   0,   6); background-color: rgb(255, 199, 206) } /* Red */
+.unchecked { color: rgb(  0,   0,  97); background-color: rgb(198, 206, 239) } /* Blue */
+.info      { color: rgb(  0,   0,   0); background-color: rgb(217, 217, 214) } /* Gray */
+.label     { color: rgb(255, 255, 255); background-color: rgb(  0,   0,   0) } /* White on black */
+EOT
+          style.text = css
           report_lines = []
           pages.each_pair do |_, page|
             page_lines = []
             page.links.each do |link|
               next if link.errors.empty?
-              table = link.to_table
-              require 'rexml/formatters/pretty'
-              s = +''
-              REXML::Formatters::Pretty.new(2).write(table, s)
-              puts s
+              body.add_element(link.to_table)
               link_lines = []
               link_lines << "  Link:"
               lineno, href, text, type =
@@ -195,7 +219,7 @@ module Rdoc
             report_lines.concat(page_lines)
           end
           report = report_lines.join("\n")
-          snapshot.write_report(report)
+          snapshot.write_report(html)
         end
 
         # Get a page from the web; up to 10 redirects.
@@ -394,11 +418,11 @@ module Rdoc
         attr_accessor :lineno, :href, :text, :type, :errors
 
         CSS_CLASSES = {
-          lineno: %w[number],
-          href: %w[string data],
-          text: %w[string data],
-          type: %w[string],
-          errors: %w[string],
+          lineno: %w[string info],
+          href: %w[data info],
+          text: %w[data info],
+          type: %w[string info],
+          errors: %w[string bad],
         }
 
         def initialize(object)
@@ -495,7 +519,8 @@ module Rdoc
         def to_table
           data = {}
           to_h.each_pair do |name, value|
-            data[name] = [value, CSS_CLASSES[name]]
+            _value = name == :type ? value.capitalize : value
+            data[name.capitalize] = [_value, CSS_CLASSES[name]]
           end
           Html.table2('Link', data)
         end
@@ -752,10 +777,14 @@ module Rdoc
           File.read(filepath)
         end
 
-        def write_report(report)
-          filepath = File.join(report_dirpath, 'Report.txt')
+        def write_report(html)
+          formatter = REXML::Formatters::Pretty.new(2)
+          formatter.compact = true
+          filepath = File.join(report_dirpath, 'Report.html')
           puts "Writing #{filepath}"
-          File.write(filepath, report)
+          File.open(filepath, 'w') do |file|
+            formatter.write(html, file)
+          end
         end
 
       end
@@ -795,6 +824,7 @@ module Rdoc
           tr = table.add_element('tr')
           th = tr.add_element('th', {'colspan' => 2})
           th.text = title
+          th.attributes['class'] = 'label'
           data.each_pair do |label, classes_for_value|
             tr = table.add_element('tr')
             th = tr.add_element('th')
@@ -805,7 +835,11 @@ module Rdoc
             if name.is_a?(Array)
               td.add_element(self.ul(name, classes))
             else
-              td.text = name
+              if classes.include?('data')
+                td.text = "'#{name}'"
+              else
+                td.text = name
+              end
               td.attributes['class'] = classes.join(' ')
             end
           end
