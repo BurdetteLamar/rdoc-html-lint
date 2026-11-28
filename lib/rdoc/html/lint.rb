@@ -182,6 +182,7 @@ EOT
             end
             page.ids.each do |id|
               next if id.errors.empty?
+              body.add_element(id.to_table)
               id_lines = []
               id_lines << "  Id:"
               lineno, name, value =
@@ -336,6 +337,12 @@ EOT
       class Id
 
         PATTERN = /(?<name>\bid)="(?<value>[^"]*)"/
+        CSS_CLASSES = {
+          lineno: %w[string info],
+          name: %w[data info],
+          value: %w[data info],
+          errors: %w[string bad],
+        }
 
         attr_accessor :lineno, :name, :value, :errors
 
@@ -391,9 +398,8 @@ EOT
 
         def to_table
           data = {}
-          classes = %w[number data data string]
-          to_h.each_pair do |key, value|
-            data[key] = [value, classes]
+          to_h.each_pair do |name, value|
+            data[name.capitalize] = [value, CSS_CLASSES[name]]
           end
           Html.table2('Id', data)
         end
@@ -621,8 +627,8 @@ EOT
 
         def to_table
           data = {}
-          to_h.each_pair do |key, value|
-            data[key] = [value, CSS_CLASSES[key]]
+          to_h.each_pair do |name, value|
+            data[name] = [value, CSS_CLASSES[name]]
           end
           Html.table2('Heading', data)
         end
