@@ -160,67 +160,33 @@ module Rdoc
 .label     { color: rgb(255, 255, 255); background-color: rgb(  0,   0,   0) } /* White on black */
 EOT
           style.text = css
-          report_lines = []
           pages.each_pair do |_, page|
-            page_lines = []
+            # Provisionally add page heading; remove below if not needed.
+            page_heading = page.heading
+            body.add_element(page_heading)
+            page_ok = true
             page.links.each do |link|
               next if link.errors.empty?
               body.add_element(link.to_table)
-              link_lines = []
-              link_lines << "  Link:"
-              lineno, href, text, type =
-                link.to_h.values_at(:lineno, :href, :text, :type, :errors)
-              link_lines << "    Lineno: #{lineno}"
-              link_lines << "    Type: #{type}"
-              link_lines << "    Href: '#{href}'"
-              link_lines << "    Text: '#{text}'"
-              link_lines << "    Errors:" unless link.errors.empty?
-              link.errors.each do |error|
-                link_lines << "      #{error}"
-              end
-              page_lines.concat(link_lines)
+              page_ok = false
             end
             page.ids.each do |id|
               next if id.errors.empty?
               body.add_element(id.to_table)
-              id_lines = []
-              id_lines << "  Id:"
-              lineno, name, value =
-                id.to_h.values_at(:lineno, :name, :value, :errors)
-              id_lines << "    Lineno: #{lineno}"
-              id_lines << "    Name: '#{name}'"
-              id_lines << "    Value: '#{value}'"
-              id_lines << "    Errors:" unless id.errors.empty?
-              id.errors.each do |error|
-                id_lines << "      #{error}"
-              end
-              page_lines.concat(id_lines)
+              page_ok = false
             end
             page.headings.each do |heading|
               # Bug in RDoc itself causes this (on every page).
               heading.errors.shift if heading.errors.first == "Bad jump: 1 to 3."
-              unless heading.errors.empty?
-                body.add_element(heading.to_table)
-                heading_lines = []
-                heading_lines << "  Heading:"
-                level, lineno, text = heading.to_h.values_at(:level, :lineno, :text)
-                heading_lines << "    Level: #{level}"
-                heading_lines << "    Lineno: #{lineno}"
-                heading_lines << "    Text: '#{text}'"
-                unless heading.errors.empty?
-                  heading_lines << "    Errors:"
-                  heading.errors.each do |error|
-                    heading_lines << "      #{error}"
-                  end
-                end
-                page_lines.concat(heading_lines)
-              end
+              next if heading.errors.empty?
+              body.add_element(heading.to_table)
+              page_ok = false
             end
-            next if page_lines.empty?
-            page_lines.unshift("Page #{page.path}")
-            report_lines.concat(page_lines)
+            # Remove page heading if not needed.
+            if page_ok
+              page_heading.parent.delete_element(page_heading)
+            end
           end
-          report = report_lines.join("\n")
           snapshot.write_report(html)
         end
 
@@ -327,6 +293,10 @@ EOT
             headings: headings.map(&:to_h),
             ids: ids.map(&:to_h)
           }
+        end
+
+        def heading
+          Html.heading(2, path)
         end
 
         def to_json
@@ -629,7 +599,7 @@ EOT
         def to_table
           data = {}
           to_h.each_pair do |name, value|
-            data[name] = [value, CSS_CLASSES[name]]
+            data[name.capitalize] = [value, CSS_CLASSES[name]]
           end
           Html.table2('Heading', data)
         end
@@ -811,7 +781,7 @@ EOT
         end
 
         def self.heading(level, text)
-          heading = self.ele("h#{level}")
+          heading = self.element("h#{level}")
           heading.text = text
           heading
         end
