@@ -200,6 +200,7 @@ EOT
               # Bug in RDoc itself causes this (on every page).
               heading.errors.shift if heading.errors.first == "Bad jump: 1 to 3."
               unless heading.errors.empty?
+                body.add_element(heading.to_table)
                 heading_lines = []
                 heading_lines << "  Heading:"
                 level, lineno, text = heading.to_h.values_at(:level, :lineno, :text)
@@ -542,10 +543,10 @@ EOT
         PATTERN = /<h(?<level>[1-6])\b[^>]*>(?<text>.*?)<\/h\k<level>\s*>/im
 
         CSS_CLASSES = {
-          lineno: %w[number],
-          level: %w[number],
-          text: %w[string data],
-          errors: %w[string],
+          lineno: %w[string info],
+          level: %w[string info],
+          text: %w[data info],
+          errors: %w[string bad],
         }
 
         attr_accessor :lineno, :level, :text, :errors
